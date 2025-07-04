@@ -1,1 +1,555 @@
+-- ================================================================
+-- CRAFTER TAB - Auto-Injected Crafting System
+-- Repository: Resn
+-- ================================================================
+
+-- Check if this is being loaded as a module or executed directly
+local function initializeCrafterTab()
+    -- Ensure we have access to the main script's variables
+    if not Tabs or not Window or not Library then
+        warn("❌ Crafter Tab: Main script not loaded! Please run the main script first.")
+        return false
+    end
+
+    -- ================================================================
+    -- CRAFTER TAB INITIALIZATION
+    -- ================================================================
+    local CrafterTab = Window:AddTab("Crafter", "hammer")
+    local CrafterTabBox = CrafterTab:AddLeftTabbox("Crafting System")
+    local AutoCraftTab = CrafterTabBox:AddTab("Auto Craft")
+    local CraftingListTab = CrafterTabBox:AddTab("Crafting List")
+
+    -- ================================================================
+    -- GLOBAL CRAFTER VARIABLES
+    -- ================================================================
+    local AutoCraftEnabled = false
+    local SelectedCraftingItems = {}
+    local CraftingQueue = {}
+    local CurrentlyCrafting = false
+    local CraftingInterval = 1 -- seconds between crafts
+    local RequiredResourcesOnly = false
+
+    -- ================================================================
+    -- CRAFTING DATA - All Available Recipes
+    -- ================================================================
+    local CraftingRecipes = {
+        -- Seeds
+        ["Carrot Seed"] = {materials = {["Wild Carrot"] = 1}, category = "Seeds"},
+        ["Corn Seed"] = {materials = {["Corn"] = 1}, category = "Seeds"},
+        ["Tomato Seed"] = {materials = {["Tomato"] = 1}, category = "Seeds"},
+        ["Potato Seed"] = {materials = {["Potato"] = 1}, category = "Seeds"},
+        ["Eggplant Seed"] = {materials = {["Eggplant"] = 1}, category = "Seeds"},
+        ["Bell Pepper Seed"] = {materials = {["Bell Pepper"] = 1}, category = "Seeds"},
+        ["Cauliflower Seed"] = {materials = {["Cauliflower"] = 1}, category = "Seeds"},
+        ["Purple Cabbage Seed"] = {materials = {["Purple Cabbage"] = 1}, category = "Seeds"},
+        
+        -- Tools
+        ["Basic Watering Can"] = {materials = {["Metal"] = 3, ["Wild Carrot"] = 5}, category = "Tools"},
+        ["Advanced Watering Can"] = {materials = {["Metal"] = 5, ["Corn"] = 8, ["Gold"] = 2}, category = "Tools"},
+        ["Master Watering Can"] = {materials = {["Metal"] = 8, ["Dragon Fruit"] = 3, ["Gold"] = 5, ["Diamond"] = 1}, category = "Tools"},
+        ["Basic Shovel"] = {materials = {["Metal"] = 2, ["Wood"] = 5}, category = "Tools"},
+        ["Advanced Shovel"] = {materials = {["Metal"] = 4, ["Wood"] = 8, ["Gold"] = 2}, category = "Tools"},
+        ["Master Shovel"] = {materials = {["Metal"] = 6, ["Dragon Fruit"] = 2, ["Gold"] = 4, ["Diamond"] = 1}, category = "Tools"},
+        
+        -- Sprinklers
+        ["Basic Sprinkler"] = {materials = {["Metal"] = 5, ["Wild Carrot"] = 10, ["Wood"] = 3}, category = "Sprinklers"},
+        ["Advanced Sprinkler"] = {materials = {["Metal"] = 8, ["Corn"] = 15, ["Gold"] = 3, ["Wood"] = 5}, category = "Sprinklers"},
+        ["Godly Sprinkler"] = {materials = {["Metal"] = 12, ["Dragon Fruit"] = 5, ["Gold"] = 8, ["Diamond"] = 2}, category = "Sprinklers"},
+        ["Master Sprinkler"] = {materials = {["Metal"] = 15, ["Moon Mango"] = 3, ["Gold"] = 12, ["Diamond"] = 4}, category = "Sprinklers"},
+        ["Honey Sprinkler"] = {materials = {["Metal"] = 10, ["Honey"] = 20, ["Gold"] = 6, ["Bee Balm"] = 8}, category = "Sprinklers"},
+        ["Chocolate Sprinkler"] = {materials = {["Metal"] = 10, ["Chocolate"] = 15, ["Gold"] = 6, ["Cacao"] = 10}, category = "Sprinklers"},
+        
+        -- Decorations
+        ["Wooden Fence"] = {materials = {["Wood"] = 3}, category = "Decorations"},
+        ["Stone Fence"] = {materials = {["Stone"] = 5, ["Wood"] = 2}, category = "Decorations"},
+        ["Golden Fence"] = {materials = {["Gold"] = 3, ["Stone"] = 5, ["Wood"] = 2}, category = "Decorations"},
+        ["Garden Gnome"] = {materials = {["Stone"] = 8, ["Paint"] = 3}, category = "Decorations"},
+        ["Fountain"] = {materials = {["Stone"] = 15, ["Metal"] = 8, ["Gold"] = 5}, category = "Decorations"},
+        
+        -- Consumables
+        ["Growth Boost"] = {materials = {["Green Apple"] = 3, ["Mint"] = 2, ["Honey"] = 1}, category = "Consumables"},
+        ["Speed Boost"] = {materials = {["Banana"] = 5, ["Sugar"] = 3}, category = "Consumables"},
+        ["Luck Boost"] = {materials = {["Rainbow Fruit"] = 1, ["Gold"] = 2}, category = "Consumables"},
+        
+        -- Advanced Items
+        ["Teleporter"] = {materials = {["Metal"] = 20, ["Diamond"] = 5, ["Moon Blossom"] = 3, ["Circuit Board"] = 2}, category = "Advanced"},
+        ["Auto Harvester"] = {materials = {["Metal"] = 25, ["Diamond"] = 8, ["Circuit Board"] = 5, ["Gold"] = 15}, category = "Advanced"},
+        ["Weather Machine"] = {materials = {["Metal"] = 30, ["Diamond"] = 10, ["Circuit Board"] = 8, ["Celestiberry"] = 5}, category = "Advanced"},
+    }
+
+    -- Get all craftable items for dropdown
+    local AllCraftableItems = {}
+    for itemName, recipe in pairs(CraftingRecipes) do
+        table.insert(AllCraftableItems, itemName)
+    end
+    table.sort(AllCraftableItems) -- Sort alphabetically
+
+    -- ================================================================
+    -- CRAFTING FUNCTIONS
+    -- ================================================================
+
+    -- Function to check if player has required materials
+    local function hasRequiredMaterials(itemName)
+        local recipe = CraftingRecipes[itemName]
+        if not recipe then return false end
+
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if not backpack then return false end
+
+        for material, requiredAmount in pairs(recipe.materials) do
+            local found = false
+            local totalAmount = 0
+
+            -- Check all items in backpack
+            for _, item in pairs(backpack:GetChildren()) do
+                local itemAmount = 1
+                local cleanName = item.Name
+
+                -- Extract quantity from name if it exists (e.g., "Wild Carrot [X5]")
+                local quantityMatch = string.match(item.Name, "%[X(%d+)%]")
+                if quantityMatch then
+                    itemAmount = tonumber(quantityMatch) or 1
+                    cleanName = string.gsub(item.Name, " %[X%d+%]", "")
+                end
+
+                if cleanName == material then
+                    totalAmount = totalAmount + itemAmount
+                end
+            end
+
+            if totalAmount < requiredAmount then
+                return false, material, requiredAmount, totalAmount
+            end
+        end
+
+        return true
+    end
+
+    -- Function to get crafting workstation/table
+    local function getCraftingTable()
+        local myFarm = getMyFarm and getMyFarm()
+        if not myFarm then return nil end
+
+        -- Look for crafting table in farm
+        local craftingTable = myFarm:FindFirstChild("CraftingTable", true)
+        if not craftingTable then
+            -- Try alternative names
+            craftingTable = myFarm:FindFirstChild("Crafting Table", true) or
+                           myFarm:FindFirstChild("WorkBench", true) or
+                           myFarm:FindFirstChild("Workbench", true)
+        end
+
+        return craftingTable
+    end
+
+    -- Function to craft a single item
+    local function craftItem(itemName)
+        if CurrentlyCrafting then
+            print("⚠️ Already crafting, please wait...")
+            return false
+        end
+
+        local recipe = CraftingRecipes[itemName]
+        if not recipe then
+            print("❌ No recipe found for:", itemName)
+            return false
+        end
+
+        -- Check if we have required materials
+        local hasMaterials, missingMaterial, required, current = hasRequiredMaterials(itemName)
+        if not hasMaterials then
+            print("❌ Missing materials for " .. itemName .. ": Need " .. required .. " " .. missingMaterial .. ", have " .. (current or 0))
+            Library:Notify("❌ Missing " .. missingMaterial .. " (" .. required .. " needed, " .. (current or 0) .. " have)", 3)
+            return false
+        end
+
+        CurrentlyCrafting = true
+        print("🔨 Crafting:", itemName)
+
+        local success = pcall(function()
+            -- Method 1: Try proximity prompt on crafting table
+            local craftingTable = getCraftingTable()
+            if craftingTable then
+                local prompt = craftingTable:FindFirstChild("ProximityPrompt", true)
+                if prompt and prompt.Enabled then
+                    -- Teleport to crafting table
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local tablePosition = craftingTable:GetPivot().Position
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(tablePosition + Vector3.new(0, 3, 0))
+                        task.wait(0.5)
+                        
+                        -- Trigger crafting prompt
+                        fireproximityprompt(prompt)
+                        task.wait(0.3)
+                    end
+                end
+            end
+
+            -- Method 2: Direct remote event crafting
+            local craftingService = game:GetService("ReplicatedStorage"):FindFirstChild("GameEvents")
+            if craftingService then
+                local craftRemote = craftingService:FindFirstChild("CraftItem") or 
+                                 craftingService:FindFirstChild("Craft") or
+                                 craftingService:FindFirstChild("CreateItem")
+                
+                if craftRemote then
+                    craftRemote:FireServer(itemName)
+                    task.wait(0.2)
+                end
+            end
+
+            -- Method 3: ByteNet crafting (if available)
+            local byteNet = game:GetService("ReplicatedStorage"):FindFirstChild("ByteNetReliable")
+            if byteNet then
+                local craftData = {
+                    action = "craft",
+                    item = itemName,
+                    materials = recipe.materials
+                }
+                byteNet:FireServer(craftData)
+            end
+        end)
+
+        CurrentlyCrafting = false
+
+        if success then
+            print("✅ Successfully crafted:", itemName)
+            Library:Notify("🔨 Crafted " .. itemName, 2)
+            return true
+        else
+            print("❌ Failed to craft:", itemName)
+            Library:Notify("❌ Failed to craft " .. itemName, 3)
+            return false
+        end
+    end
+
+    -- Function to auto craft items from queue
+    local function autoCraftLoop()
+        while AutoCraftEnabled and #CraftingQueue > 0 do
+            local itemName = CraftingQueue[1]
+            
+            -- Check if we should only craft when we have materials
+            if RequiredResourcesOnly then
+                local hasMaterials = hasRequiredMaterials(itemName)
+                if not hasMaterials then
+                    print("⏭️ Skipping " .. itemName .. " - missing materials")
+                    table.remove(CraftingQueue, 1) -- Remove from queue
+                    continue
+                end
+            end
+
+            -- Try to craft the item
+            local success = craftItem(itemName)
+            
+            if success then
+                -- Remove from queue after successful craft
+                table.remove(CraftingQueue, 1)
+            else
+                -- If failed and only crafting with materials, remove from queue
+                if RequiredResourcesOnly then
+                    table.remove(CraftingQueue, 1)
+                else
+                    -- Otherwise, wait and try again
+                    task.wait(CraftingInterval)
+                end
+            end
+
+            task.wait(CraftingInterval)
+        end
+
+        if AutoCraftEnabled and #CraftingQueue == 0 then
+            Library:Notify("✅ Crafting queue completed!", 3)
+            AutoCraftEnabled = false
+            if Toggles.AutoCraft then
+                Toggles.AutoCraft:SetValue(false)
+            end
+        end
+    end
+
+    -- ================================================================
+    -- AUTO CRAFT TAB UI
+    -- ================================================================
+
+    -- Item selection dropdown
+    AutoCraftTab:AddDropdown("CraftingItems", {
+        Values = AllCraftableItems,
+        Default = 1,
+        Multi = true,
+        Text = "Select Items to Craft",
+        Tooltip = "Choose which items to add to the crafting queue",
+        Callback = function(Value)
+            print("[cb] Selected crafting items changed:")
+            SelectedCraftingItems = Value
+            for item, selected in pairs(Value) do
+                print(item, selected)
+            end
+        end,
+    })
+
+    -- Crafting mode toggle
+    AutoCraftTab:AddToggle("RequiredResourcesOnly", {
+        Text = "Only Craft With Materials",
+        Default = false,
+        Tooltip = "When enabled, only craft items when you have all required materials in inventory",
+        Callback = function(Value)
+            RequiredResourcesOnly = Value
+            print("[cb] Required resources only mode:", Value)
+        end,
+    })
+
+    -- Crafting interval slider
+    AutoCraftTab:AddSlider("CraftingInterval", {
+        Text = "Crafting Interval (seconds)",
+        Default = 1,
+        Min = 0.5,
+        Max = 10,
+        Rounding = 1,
+        Compact = false,
+        Tooltip = "Delay between crafting attempts (0.5-10 seconds)",
+        Callback = function(Value)
+            CraftingInterval = Value
+            print("[cb] Crafting interval changed to", Value, "seconds")
+        end
+    })
+
+    AutoCraftTab:AddDivider()
+
+    -- Add to queue button
+    AutoCraftTab:AddButton("📝 Add Selected to Queue", function()
+        if not SelectedCraftingItems or not next(SelectedCraftingItems) then
+            Library:Notify("⚠️ Please select items to craft first!", 3)
+            return
+        end
+
+        local addedCount = 0
+        for itemName, selected in pairs(SelectedCraftingItems) do
+            if selected then
+                table.insert(CraftingQueue, itemName)
+                addedCount = addedCount + 1
+                print("📝 Added to queue:", itemName)
+            end
+        end
+
+        Library:Notify("📝 Added " .. addedCount .. " items to crafting queue", 3)
+        print("📋 Current queue:", table.concat(CraftingQueue, ", "))
+    end)
+
+    -- Start auto crafting toggle
+    AutoCraftTab:AddToggle("AutoCraft", {
+        Text = "🔨 Start Auto Crafting",
+        Default = false,
+        Tooltip = "Start automatically crafting items from the queue",
+        Callback = function(Value)
+            AutoCraftEnabled = Value
+            if Value then
+                if #CraftingQueue == 0 then
+                    Library:Notify("⚠️ Crafting queue is empty! Add items first.", 3)
+                    Toggles.AutoCraft:SetValue(false)
+                    return
+                end
+
+                Library:Notify("🔨 Auto crafting started! Queue: " .. #CraftingQueue .. " items", 3)
+                print("🔨 Starting auto craft with queue:", table.concat(CraftingQueue, ", "))
+
+                -- Start crafting loop
+                task.spawn(autoCraftLoop)
+            else
+                Library:Notify("🔨 Auto crafting stopped!", 3)
+                CurrentlyCrafting = false
+            end
+        end
+    })
+
+    AutoCraftTab:AddDivider()
+
+    -- Manual craft button
+    AutoCraftTab:AddButton("🔨 Craft Selected Now", function()
+        if not SelectedCraftingItems or not next(SelectedCraftingItems) then
+            Library:Notify("⚠️ Please select items to craft first!", 3)
+            return
+        end
+
+        local craftedCount = 0
+        for itemName, selected in pairs(SelectedCraftingItems) do
+            if selected then
+                local success = craftItem(itemName)
+                if success then
+                    craftedCount = craftedCount + 1
+                end
+                task.wait(0.5) -- Small delay between crafts
+            end
+        end
+
+        if craftedCount > 0 then
+            Library:Notify("🔨 Successfully crafted " .. craftedCount .. " items!", 3)
+        end
+    end)
+
+    -- Clear queue button
+    AutoCraftTab:AddButton("🗑️ Clear Queue", function()
+        local queueSize = #CraftingQueue
+        CraftingQueue = {}
+        Library:Notify("🗑️ Cleared " .. queueSize .. " items from queue", 3)
+    end)
+
+    -- ================================================================
+    -- CRAFTING LIST TAB UI
+    -- ================================================================
+
+    CraftingListTab:AddLabel("📜 Available Recipes")
+    CraftingListTab:AddDivider()
+
+    -- Function to check materials and display recipe info
+    local function checkRecipe(itemName)
+        local recipe = CraftingRecipes[itemName]
+        if not recipe then return end
+
+        local materialsText = "Materials needed:\n"
+        local canCraft = true
+
+        for material, amount in pairs(recipe.materials) do
+            local hasMaterials, _, _, current = hasRequiredMaterials(itemName)
+            local status = "❌"
+            if current and current >= amount then
+                status = "✅"
+            elseif current and current > 0 then
+                status = "⚠️"
+                canCraft = false
+            else
+                canCraft = false
+            end
+
+            materialsText = materialsText .. status .. " " .. amount .. "x " .. material
+            if current then
+                materialsText = materialsText .. " (" .. current .. " have)"
+            end
+            materialsText = materialsText .. "\n"
+        end
+
+        materialsText = materialsText .. "\nCategory: " .. (recipe.category or "Unknown")
+        materialsText = materialsText .. "\nCan craft: " .. (canCraft and "Yes ✅" or "No ❌")
+
+        Library:Notify(itemName .. " Recipe", 0.1) -- Very short notification
+        print("📜 " .. itemName .. " Recipe:")
+        print(materialsText)
+
+        return canCraft
+    end
+
+    -- Recipe check dropdown
+    CraftingListTab:AddDropdown("RecipeChecker", {
+        Values = AllCraftableItems,
+        Default = 1,
+        Multi = false,
+        Text = "Check Recipe Requirements",
+        Tooltip = "Select an item to see its crafting requirements and check if you have materials",
+        Callback = function(Value)
+            if Value then
+                checkRecipe(Value)
+            end
+        end,
+    })
+
+    -- Quick craft buttons for common items
+    CraftingListTab:AddLabel("🚀 Quick Craft (Common Items)")
+    CraftingListTab:AddDivider()
+
+    -- Seeds category
+    CraftingListTab:AddLabel("🌱 Seeds")
+    CraftingListTab:AddButton("Carrot Seed", function() craftItem("Carrot Seed") end)
+    CraftingListTab:AddButton("Corn Seed", function() craftItem("Corn Seed") end)
+    CraftingListTab:AddButton("Tomato Seed", function() craftItem("Tomato Seed") end)
+
+    CraftingListTab:AddDivider()
+
+    -- Tools category
+    CraftingListTab:AddLabel("🔧 Tools")
+    CraftingListTab:AddButton("Basic Watering Can", function() craftItem("Basic Watering Can") end)
+    CraftingListTab:AddButton("Basic Shovel", function() craftItem("Basic Shovel") end)
+    CraftingListTab:AddButton("Basic Sprinkler", function() craftItem("Basic Sprinkler") end)
+
+    CraftingListTab:AddDivider()
+
+    -- Check all materials button
+    CraftingListTab:AddButton("📋 Check All Available Recipes", function()
+        local canCraftCount = 0
+        local totalRecipes = 0
+
+        print("=== AVAILABLE RECIPES CHECK ===")
+        
+        for itemName, recipe in pairs(CraftingRecipes) do
+            totalRecipes = totalRecipes + 1
+            local canCraft = checkRecipe(itemName)
+            if canCraft then
+                canCraftCount = canCraftCount + 1
+            end
+            task.wait(0.1) -- Small delay to prevent spam
+        end
+
+        print("=== RECIPE CHECK COMPLETE ===")
+        Library:Notify("📋 Can craft " .. canCraftCount .. "/" .. totalRecipes .. " recipes", 5)
+    end)
+
+    -- ================================================================
+    -- SUCCESS MESSAGE
+    -- ================================================================
+    Library:Notify("🔨 Crafter Tab loaded successfully!", 3)
+    print("🔨 Crafter Tab initialized with " .. #AllCraftableItems .. " craftable items")
+
+    return true
+end
+
+-- ================================================================
+-- AUTO-EXECUTION AND MODULE COMPATIBILITY
+-- ================================================================
+
+-- Check if this is being executed directly or loaded as a module
+if getgenv and getgenv().MainScriptLoaded then
+    -- Main script is already loaded, initialize immediately
+    local success = initializeCrafterTab()
+    if success then
+        print("✅ Crafter Tab successfully integrated!")
+    end
+else
+    -- Wait for main script to load, then initialize
+    print("⏳ Waiting for main script to load...")
+    
+    local function waitForMainScript()
+        local maxWait = 30 -- seconds
+        local waited = 0
+        
+        while waited < maxWait do
+            if getgenv and getgenv().MainScriptLoaded and Tabs and Window and Library then
+                local success = initializeCrafterTab()
+                if success then
+                    print("✅ Crafter Tab successfully integrated after waiting!")
+                    return true
+                end
+            end
+            
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
+        
+        warn("⚠️ Crafter Tab: Timed out waiting for main script")
+        return false
+    end
+    
+    -- Run the wait function
+    task.spawn(waitForMainScript)
+end
+
+-- ================================================================
+-- LOADSTRING COMPATIBILITY (for raw GitHub execution)
+-- ================================================================
+
+-- This allows the tab to be loaded via:
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/yourusername/Resn/main/CRAFTERTAB"))()
+
+return {
+    initialize = initializeCrafterTab,
+    name = "Crafter Tab",
+    version = "1.0.0",
+    repository = "Resn"
+}
 
