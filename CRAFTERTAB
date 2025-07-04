@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.4", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.5", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -161,29 +161,124 @@ local function initializeCrafterTab()
         print("================================")
     end
 
+    -- Debug function to explore tool structure
+    local function debugToolStructure(tool, depth)
+        depth = depth or 0
+        local indent = string.rep("  ", depth)
+        
+        print(indent .. "📁 " .. tool.Name .. " (" .. tool.ClassName .. ")")
+        
+        -- Print attributes
+        local attributes = tool:GetAttributes()
+        for name, value in pairs(attributes) do
+            print(indent .. "  🏷️ Attribute: " .. name .. " = " .. tostring(value))
+        end
+        
+        -- Print children (limit depth to avoid spam)
+        if depth < 3 then
+            for _, child in pairs(tool:GetChildren()) do
+                if child:IsA("ValueBase") then
+                    print(indent .. "  📄 " .. child.Name .. " (" .. child.ClassName .. ") = " .. tostring(child.Value))
+                else
+                    debugToolStructure(child, depth + 1)
+                end
+            end
+        end
+    end
+
     -- Helper function to extract UUID from tool
     local function getItemUUID(tool)
         if not tool then return nil, nil end
         
-        -- Try to find UUID attribute or in tool data
+        print("🔍 Attempting to extract UUID from: " .. tool.Name)
+        
+        -- Method 1: Check for UUID attribute
         local uuid = tool:GetAttribute("UUID")
-        if not uuid then
-            -- Check for UUID in tool's configuration or data
-            local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
-            if config then
-                local uuidValue = config:FindFirstChild("UUID")
-                if uuidValue then
-                    uuid = uuidValue.Value
-                end
+        if uuid then
+            print("✅ Found UUID via attribute: " .. uuid)
+            return uuid, tool
+        end
+        
+        -- Method 2: Check for UUID in tool's configuration or data
+        local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
+        if config then
+            local uuidValue = config:FindFirstChild("UUID")
+            if uuidValue then
+                uuid = uuidValue.Value
+                print("✅ Found UUID in config: " .. uuid)
+                return uuid, tool
             end
         end
         
+        -- Method 3: Try equipping the tool to get UUID
+        print("🎽 Equipping tool to check for UUID...")
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("Humanoid") then
+            -- Equip the tool
+            local humanoid = character.Humanoid
+            humanoid:EquipTool(tool)
+            task.wait(0.2) -- Small delay to let the tool equip
+            
+            -- Check if tool is now in character and has UUID
+            local equippedTool = character:FindFirstChild(tool.Name)
+            if equippedTool then
+                uuid = equippedTool:GetAttribute("UUID")
+                if uuid then
+                    print("✅ Found UUID after equipping: " .. uuid)
+                    -- Unequip the tool
+                    humanoid:UnequipTools()
+                    return uuid, tool
+                end
+                
+                -- Check config again after equipping
+                local equippedConfig = equippedTool:FindFirstChild("Configuration") or equippedTool:FindFirstChild("Data")
+                if equippedConfig then
+                    local uuidValue = equippedConfig:FindFirstChild("UUID")
+                    if uuidValue then
+                        uuid = uuidValue.Value
+                        print("✅ Found UUID in equipped tool config: " .. uuid)
+                        humanoid:UnequipTools()
+                        return uuid, tool
+                    end
+                end
+                
+                -- Unequip if no UUID found
+                humanoid:UnequipTools()
+            end
+        end
+        
+        -- Method 4: Check all children for any UUID-like values
+        print("🔍 Searching all children for UUID-like values...")
+        local function searchForUUID(obj)
+            for _, child in pairs(obj:GetChildren()) do
+                if child.Name:lower():find("uuid") or child.Name:lower():find("id") then
+                    local value = nil
+                    if child:IsA("StringValue") then
+                        value = child.Value
+                    elseif child:IsA("IntValue") or child:IsA("NumberValue") then
+                        value = tostring(child.Value)
+                    end
+                    
+                    if value and (value:find("{") or value:find("-") or #value > 10) then
+                        print("✅ Found potential UUID: " .. value .. " in " .. child.Name)
+                        return value
+                    end
+                end
+                
+                -- Recursive search
+                local foundUUID = searchForUUID(child)
+                if foundUUID then return foundUUID end
+            end
+            return nil
+        end
+        
+        uuid = searchForUUID(tool)
         if uuid then
             return uuid, tool
-        else
-            print("⚠️ Found tool " .. tool.Name .. " but no UUID")
-            return nil, nil
         end
+        
+        print("❌ Could not find UUID for tool: " .. tool.Name)
+        return nil, nil
     end
 
     -- Function to find item UUID in player's backpack
@@ -206,18 +301,24 @@ local function initializeCrafterTab()
             -- Strategy 1: Exact match
             if toolName == searchName then
                 print("✅ Found exact match: " .. tool.Name)
+                print("🔬 Analyzing tool structure:")
+                debugToolStructure(tool)
                 return getItemUUID(tool)
             end
             
             -- Strategy 2: Contains search term
             if toolName:find(searchName, 1, true) then
                 print("✅ Found partial match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                print("🔬 Analyzing tool structure:")
+                debugToolStructure(tool)
                 return getItemUUID(tool)
             end
             
             -- Strategy 3: Search term contains tool name (for cases like "Carrot" vs "Carrot Seed")
             if searchName:find(toolName, 1, true) then
                 print("✅ Found reverse match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                print("🔬 Analyzing tool structure:")
+                debugToolStructure(tool)
                 return getItemUUID(tool)
             end
             
@@ -227,6 +328,8 @@ local function initializeCrafterTab()
             
             if cleanToolName == cleanSearchName or cleanToolName:find(cleanSearchName, 1, true) then
                 print("✅ Found cleaned match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                print("🔬 Analyzing tool structure:")
+                debugToolStructure(tool)
                 return getItemUUID(tool)
             end
         end
