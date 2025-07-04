@@ -30,6 +30,7 @@ local function initializeCrafterTab()
     -- Services
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local LocalPlayer = game:GetService("Players").LocalPlayer
+    local DataService = require(ReplicatedStorage.Modules.DataService)
 
     -- Remote Events
     local CraftingGlobalObjectService = ReplicatedStorage.GameEvents.CraftingGlobalObjectService
@@ -106,6 +107,23 @@ local function initializeCrafterTab()
         return inventoryStatus
     end
 
+    -- Function to check Summer Coins
+    local function checkSummerCoins(requiredAmount)
+        local success, currentCoins = pcall(function()
+            return DataService:GetData().SpecialCurrency.SummerCoins or 0
+        end)
+        
+        if not success then
+            currentCoins = 0
+        end
+        
+        return {
+            Current = currentCoins,
+            Required = requiredAmount,
+            HasEnough = currentCoins >= requiredAmount
+        }
+    end
+
     -- Function to print inventory status to console
     local function printInventoryStatus(recipeName, inventoryStatus)
         print("==== INVENTORY CHECK FOR " .. recipeName .. " ====")
@@ -114,6 +132,14 @@ local function initializeCrafterTab()
             local countText = item.HasItem and " (Count: " .. item.Count .. ")" or ""
             print(status .. " - " .. item.ItemType .. ": " .. item.ItemName .. countText)
         end
+        print("================================")
+    end
+
+    -- Function to print currency status
+    local function printCurrencyStatus(recipeName, coinStatus)
+        print("==== CURRENCY CHECK FOR " .. recipeName .. " ====")
+        local status = coinStatus.HasEnough and "✓ HAVE ENOUGH" or "✗ NOT ENOUGH"
+        print(status .. " - Summer Coins: " .. coinStatus.Current .. "/" .. coinStatus.Required)
         print("================================")
     end
 
@@ -131,11 +157,11 @@ local function initializeCrafterTab()
 
         if success then
             print("✅ Successfully set recipe:", recipeName)
-            Library:Notify("🔨 Set recipe: " .. recipeName, 3)
+            -- Library:Notify("🔨 Set recipe: " .. recipeName, 3) -- Disabled notification
             return true
         else
             print("❌ Failed to set recipe:", err)
-            Library:Notify("❌ Failed to set recipe: " .. recipeName, 3)
+            -- Library:Notify("❌ Failed to set recipe: " .. recipeName, 3) -- Disabled notification
             return false
         end
     end
@@ -179,18 +205,22 @@ local function initializeCrafterTab()
             
             if Value then
                 if not SelectedRecipe then
-                    Library:Notify("⚠️ Please select a recipe first!", 3)
+                    -- Library:Notify("⚠️ Please select a recipe first!", 3) -- Disabled notification
                     Toggles.AutoClaim:SetValue(false)
                     return
                 end
 
-                Library:Notify("🔨 Auto Claim enabled for " .. SelectedRecipe, 3)
+                -- Library:Notify("🔨 Auto Claim enabled for " .. SelectedRecipe, 3) -- Disabled notification
                 
                 -- Step 2: Check inventory when toggle is enabled
                 local recipeData = RecipeData[SelectedRecipe]
                 if recipeData then
                     local inventoryStatus = checkInventoryForItems(recipeData)
                     printInventoryStatus(SelectedRecipe, inventoryStatus)
+                    
+                    -- Check Summer Coins
+                    local coinStatus = checkSummerCoins(recipeData.Cost.Amount)
+                    printCurrencyStatus(SelectedRecipe, coinStatus)
                 else
                     print("⚠️ Recipe data not found for:", SelectedRecipe)
                 end
@@ -198,7 +228,7 @@ local function initializeCrafterTab()
                 -- Start the auto claim loop
                 task.spawn(autoClaimLoop)
             else
-                Library:Notify("🔨 Auto Claim disabled!", 3)
+                -- Library:Notify("🔨 Auto Claim disabled!", 3) -- Disabled notification
             end
         end
     })
@@ -216,17 +246,22 @@ local function initializeCrafterTab()
         if recipeData then
             local inventoryStatus = checkInventoryForItems(recipeData)
             printInventoryStatus(SelectedRecipe, inventoryStatus)
-            Library:Notify("📦 Inventory check completed - see console", 3)
+            
+            -- Check Summer Coins
+            local coinStatus = checkSummerCoins(recipeData.Cost.Amount)
+            printCurrencyStatus(SelectedRecipe, coinStatus)
+            
+            -- Library:Notify("📦 Inventory check completed - see console", 3) -- Disabled notification
         else
             print("⚠️ Recipe data not found for:", SelectedRecipe)
-            Library:Notify("⚠️ Recipe data not found!", 3)
+            -- Library:Notify("⚠️ Recipe data not found!", 3) -- Disabled notification
         end
     end)
 
     -- Manual claim button
     SeedCrafterGroupBox:AddButton("🔨 Claim Recipe Now", function()
         if not SelectedRecipe then
-            Library:Notify("⚠️ Please select a recipe first!", 3)
+            -- Library:Notify("⚠️ Please select a recipe first!", 3) -- Disabled notification
             return
         end
         
@@ -236,7 +271,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- SUCCESS MESSAGE
     -- ================================================================
-    Library:Notify("🔨 Simple Seed Crafter loaded!", 3)
+    -- Library:Notify("🔨 Simple Seed Crafter loaded!", 3) -- Disabled notification
     print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
 
     return true
