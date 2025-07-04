@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.7", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.8", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -22,10 +22,19 @@ local function initializeCrafterTab()
     local SeedCrafterGroupBox = CrafterTab:AddLeftGroupbox("Seed Crafter")
 
     -- ================================================================
+    -- GEAR CRAFTER GROUPBOX
+    -- ================================================================
+    local GearCrafterGroupBox = CrafterTab:AddRightGroupbox("Gear Crafter")
+
+    -- ================================================================
     -- GLOBAL VARIABLES
     -- ================================================================
     local SelectedRecipe = nil
     local AutoClaimEnabled = false
+    
+    -- Gear Crafter Variables
+    local SelectedGearRecipe = nil
+    local AutoGearClaimEnabled = false
 
     -- Services
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -41,6 +50,23 @@ local function initializeCrafterTab()
         "Peace Lily",
         "Aloe Vera", 
         "Guanabana"
+    }
+
+    -- Available gear recipes
+    local AvailableGearRecipes = {
+        "Lightning Rod",
+        "Tropical Mist Sprinkler",
+        "Reclaimer",
+        "Berry Blusher Sprinkler",
+        "Spice Spritzer Sprinkler",
+        "Sweet Soaker Sprinkler",
+        "Flower Froster Sprinkler",
+        "Stalk Sprout Sprinkler",
+        "Mutation Spray Choc",
+        "Mutation Spray Chilled",
+        "Mutation Spray Shocked",
+        "Anti Bee Egg",
+        "Pack Bee"
     }
 
     -- Recipe data for inventory checking
@@ -66,6 +92,173 @@ local function initializeCrafterTab()
                 {ItemType = "Holdable", ItemName = "Banana"}
             },
             Cost = {CurrencyType = "SummerCoins", Amount = 30}
+        }
+    }
+
+    -- Gear Recipe data for gear crafting
+    local GearRecipeData = {
+        ["Lightning Rod"] = {
+            LayoutOrder = 5,
+            TimeToCraft = 2700,
+            Inputs = {
+                {ItemType = "Sprinkler", ItemName = "Basic Sprinkler"},
+                {ItemType = "Sprinkler", ItemName = "Advanced Sprinkler"},
+                {ItemType = "Sprinkler", ItemName = "Godly Sprinkler"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 500000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3265946758,
+            RobuxPrice = 179
+        },
+        ["Tropical Mist Sprinkler"] = {
+            LayoutOrder = 10,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Coconut"},
+                {ItemType = "Holdable", ItemName = "Dragon Fruit"},
+                {ItemType = "Holdable", ItemName = "Mango"},
+                {ItemType = "Sprinkler", ItemName = "Godly Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484251,
+            RobuxPrice = 229
+        },
+        ["Reclaimer"] = {
+            LayoutOrder = 8,
+            TimeToCraft = 1500,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Common Egg"},
+                {ItemType = "Harvest Tool", ItemName = "Harvest Tool"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 500000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3309686533,
+            RobuxPrice = 199
+        },
+        ["Berry Blusher Sprinkler"] = {
+            LayoutOrder = 20,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Grape"},
+                {ItemType = "Holdable", ItemName = "Blueberry"},
+                {ItemType = "Holdable", ItemName = "Strawberry"},
+                {ItemType = "Sprinkler", ItemName = "Godly Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484242,
+            RobuxPrice = 229
+        },
+        ["Spice Spritzer Sprinkler"] = {
+            LayoutOrder = 30,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Pepper"},
+                {ItemType = "Holdable", ItemName = "Ember Lily"},
+                {ItemType = "Holdable", ItemName = "Cacao"},
+                {ItemType = "Sprinkler", ItemName = "Master Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484232,
+            RobuxPrice = 229
+        },
+        ["Sweet Soaker Sprinkler"] = {
+            LayoutOrder = 40,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Watermelon"},
+                {ItemType = "Holdable", ItemName = "Watermelon"},
+                {ItemType = "Holdable", ItemName = "Watermelon"},
+                {ItemType = "Sprinkler", ItemName = "Master Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484252,
+            RobuxPrice = 229
+        },
+        ["Flower Froster Sprinkler"] = {
+            LayoutOrder = 50,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Orange Tulip"},
+                {ItemType = "Holdable", ItemName = "Daffodil"},
+                {ItemType = "Sprinkler", ItemName = "Advanced Sprinkler"},
+                {ItemType = "Sprinkler", ItemName = "Basic Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484243,
+            RobuxPrice = 229
+        },
+        ["Stalk Sprout Sprinkler"] = {
+            LayoutOrder = 60,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Bamboo"},
+                {ItemType = "Holdable", ItemName = "Beanstalk"},
+                {ItemType = "Holdable", ItemName = "Mushroom"},
+                {ItemType = "Sprinkler", ItemName = "Advanced Sprinkler"}
+            },
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484241,
+            RobuxPrice = 229
+        },
+        ["Mutation Spray Choc"] = {
+            LayoutOrder = 70,
+            TimeToCraft = 720,
+            Inputs = {
+                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
+                {ItemType = "Holdable", ItemName = "Cacao"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 200000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484247,
+            RobuxPrice = 179
+        },
+        ["Mutation Spray Chilled"] = {
+            LayoutOrder = 80,
+            TimeToCraft = 300,
+            Inputs = {
+                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
+                {ItemType = "Sprinkler", ItemName = "Godly Sprinkler"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 500000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3317772898,
+            RobuxPrice = 189
+        },
+        ["Mutation Spray Shocked"] = {
+            LayoutOrder = 90,
+            TimeToCraft = 1800,
+            Inputs = {
+                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
+                {ItemType = "Lightning Rod", ItemName = "Lightning Rod"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 1000000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484253,
+            RobuxPrice = 199
+        },
+        ["Anti Bee Egg"] = {
+            LayoutOrder = 110,
+            TimeToCraft = 7200,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Bee Egg"}
+            },
+            Cost = {CurrencyType = "Honey", Amount = 25},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484244,
+            RobuxPrice = 149
+        },
+        ["Pack Bee"] = {
+            LayoutOrder = 120,
+            TimeToCraft = 14400,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Anti Bee Egg"},
+                {ItemType = "Holdable", ItemName = "Sunflower"},
+                {ItemType = "Holdable", ItemName = "Purple Dahlia"}
+            },
+            Cost = {CurrencyType = "Honey", Amount = 250},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484257,
+            RobuxPrice = 799
         }
     }
 
@@ -431,6 +624,35 @@ local function initializeCrafterTab()
         end
     end
 
+    -- Function to claim gear recipe
+    local function claimGearRecipe(recipeName)
+        local success, err = pcall(function()
+            print("⚙️ Setting gear recipe:", recipeName)
+            local EventCraftingWorkBench = workspace.CraftingTables.EventCraftingWorkBench
+            local SelectCraftingRecipeBindableEvent = ReplicatedStorage.GameEvents.SelectCraftingRecipeBindableEvent
+            
+            local recipeData = GearRecipeData[recipeName]
+            if not recipeData then
+                error("Recipe data not found for: " .. recipeName)
+            end
+            
+            -- Fire the bindable event with the recipe data
+            SelectCraftingRecipeBindableEvent:Fire(
+                EventCraftingWorkBench,
+                recipeName,
+                recipeData
+            )
+        end)
+
+        if success then
+            print("✅ Successfully set gear recipe:", recipeName)
+            return true
+        else
+            print("❌ Failed to set gear recipe:", err)
+            return false
+        end
+    end
+
     -- Simple auto claim loop - just claim continuously
     local function autoClaimLoop()
         print("🔨 Starting simple auto claim loop for:", SelectedRecipe)
@@ -539,10 +761,73 @@ local function initializeCrafterTab()
     end)
 
     -- ================================================================
+    -- GEAR CRAFTER UI ELEMENTS  
+    -- ================================================================
+
+    -- Gear Recipe selection dropdown
+    GearCrafterGroupBox:AddDropdown("GearRecipeSelection", {
+        Values = AvailableGearRecipes,
+        Default = 1,
+        Multi = false, -- Single selection only
+        Text = "Select Gear Recipe",
+        Tooltip = "Choose which gear recipe to claim/set",
+        Callback = function(Value)
+            SelectedGearRecipe = Value
+            print("[cb] Selected gear recipe:", Value)
+        end,
+    })
+
+    -- Auto gear claim toggle
+    GearCrafterGroupBox:AddToggle("AutoGearClaim", {
+        Text = "⚙️ Auto Craft Gear",
+        Default = false,
+        Tooltip = "Set gear recipe automatically",
+        Callback = function(Value)
+            print("[cb] Auto Craft Gear toggled:", Value)
+            
+            if Value then
+                if not SelectedGearRecipe then
+                    print("⚠️ Please select a gear recipe first!")
+                    -- Use task.wait to avoid immediate callback loop
+                    task.wait(0.1)
+                    if Toggles and Toggles.AutoGearClaim then
+                        Toggles.AutoGearClaim:SetValue(false)
+                    end
+                    return
+                end
+
+                print("⚙️ Auto-crafting gear recipe:", SelectedGearRecipe)
+                
+                -- Claim the gear recipe
+                claimGearRecipe(SelectedGearRecipe)
+                
+                -- Turn toggle back off after processing
+                task.wait(0.1)
+                if Toggles and Toggles.AutoGearClaim then
+                    Toggles.AutoGearClaim:SetValue(false)
+                end
+            end
+        end
+    })
+
+    GearCrafterGroupBox:AddDivider()
+
+    -- Manual gear claim button
+    GearCrafterGroupBox:AddButton("⚙️ Claim Gear Recipe Now", function()
+        if not SelectedGearRecipe then
+            print("⚠️ Please select a gear recipe first!")
+            return
+        end
+        
+        claimGearRecipe(SelectedGearRecipe)
+    end)
+
+    -- ================================================================
     -- SUCCESS MESSAGE
     -- ================================================================
     -- Library:Notify("🔨 Simple Seed Crafter loaded!", 3) -- Disabled notification
     print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
+    print("⚙️ Gear Crafter initialized with " .. #AvailableGearRecipes .. " gear recipes")
 
     return true
 end
@@ -593,7 +878,7 @@ end
 
 return {
     initialize = initializeCrafterTab,
-    name = "Simple Seed Crafter",
-    version = "1.0.0",
+    name = "Simple Seed & Gear Crafter",
+    version = "1.1.0",
     repository = "Resn"
 }
