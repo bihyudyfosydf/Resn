@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.5", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.7", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -199,6 +199,17 @@ local function initializeCrafterTab()
             return uuid, tool
         end
         
+        -- Method 1.5: Check for common UUID attribute names (c, id, etc.)
+        local attributes = tool:GetAttributes()
+        for attrName, attrValue in pairs(attributes) do
+            local attrStr = tostring(attrValue)
+            -- Check if this looks like a UUID (contains { and } and -)
+            if attrStr:find("{") and attrStr:find("}") and attrStr:find("-") then
+                print("✅ Found UUID-like attribute '" .. attrName .. "': " .. attrStr)
+                return attrStr, tool
+            end
+        end
+        
         -- Method 2: Check for UUID in tool's configuration or data
         local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
         if config then
@@ -228,6 +239,17 @@ local function initializeCrafterTab()
                     -- Unequip the tool
                     humanoid:UnequipTools()
                     return uuid, tool
+                end
+                
+                -- Check for UUID-like attributes in equipped tool
+                local equippedAttributes = equippedTool:GetAttributes()
+                for attrName, attrValue in pairs(equippedAttributes) do
+                    local attrStr = tostring(attrValue)
+                    if attrStr:find("{") and attrStr:find("}") and attrStr:find("-") then
+                        print("✅ Found UUID-like attribute '" .. attrName .. "' after equipping: " .. attrStr)
+                        humanoid:UnequipTools()
+                        return attrStr, tool
+                    end
                 end
                 
                 -- Check config again after equipping
