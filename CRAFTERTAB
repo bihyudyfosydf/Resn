@@ -1,5 +1,5 @@
 -- ================================================================
--- SEED CRAFTER TAB - Auto Seed Crafting System
+-- SIMPLE SEED CRAFTER TAB - Basic Recipe Claiming
 -- Repository: Resn
 -- ================================================================
 
@@ -22,12 +22,10 @@ local function initializeCrafterTab()
     local SeedCrafterGroupBox = CrafterTab:AddLeftGroupbox("Seed Crafter")
 
     -- ================================================================
-    -- GLOBAL SEED CRAFTER VARIABLES
+    -- GLOBAL VARIABLES
     -- ================================================================
-    local AutoSeedCrafterEnabled = false
     local SelectedRecipe = nil
-    local CurrentlyCrafting = false
-    local LastSummerCoins = 0
+    local AutoClaimEnabled = false
 
     -- Services
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -37,176 +35,21 @@ local function initializeCrafterTab()
     local CraftingGlobalObjectService = ReplicatedStorage.GameEvents.CraftingGlobalObjectService
     local SeedEventCraftingWorkBench = workspace.CraftingTables.SeedEventCraftingWorkBench
 
-    -- ================================================================
-    -- SEED CRAFTING RECIPES - Summer Coins Based
-    -- ================================================================
-    local SeedCraftingRecipes = {
-        ["Peace Lily"] = {
-            inputs = {
-                {ItemType = "Seed", ItemName = "Rafflesia"},
-                {ItemType = "Seed", ItemName = "Cauliflower"}
-            },
-            cost = 3, -- Summer Coins
-            timeToCraft = 600 -- 10 minutes
-        },
-        ["Aloe Vera"] = {
-            inputs = {
-                {ItemType = "Seed", ItemName = "Peace Lily"},
-                {ItemType = "Holdable", ItemName = "Prickly Pear"}
-            },
-            cost = 18, -- Summer Coins
-            timeToCraft = 600 -- 10 minutes
-        },
-        ["Guanabana"] = {
-            inputs = {
-                {ItemType = "Seed", ItemName = "Aloe Vera"},
-                {ItemType = "Seed", ItemName = "Prickly Pear"},
-                {ItemType = "Holdable", ItemName = "Banana"}
-            },
-            cost = 30, -- Summer Coins
-            timeToCraft = 600 -- 10 minutes
-        }
+    -- Available recipes
+    local AvailableRecipes = {
+        "Peace Lily",
+        "Aloe Vera", 
+        "Guanabana"
     }
-
-    -- Get all available recipes for dropdown
-    local AvailableRecipes = {}
-    for recipeName, recipeData in pairs(SeedCraftingRecipes) do
-        table.insert(AvailableRecipes, recipeName)
-    end
-    table.sort(AvailableRecipes) -- Sort alphabetically
 
     -- ================================================================
     -- HELPER FUNCTIONS
     -- ================================================================
 
-    -- Function to get player's summer coins
-    local function getSummerCoins()
-        local success, result = pcall(function()
-            local DataService = require(ReplicatedStorage.Modules.DataService)
-            local data = DataService:GetData()
-            if data and data.SpecialCurrency and data.SpecialCurrency.SummerCoins then
-                return data.SpecialCurrency.SummerCoins
-            end
-            return 0
-        end)
-        
-        if success then
-            return result
-        else
-            print("❌ Failed to get summer coins:", result)
-            return 0
-        end
-    end
-
-    -- Function to get player's inventory items
-    local function getInventoryItems()
-        local items = {}
-        
-        -- Check backpack
-        if LocalPlayer.Backpack then
-            for _, item in pairs(LocalPlayer.Backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    local cleanName = item.Name
-                    -- Remove quantity indicators like [X5]
-                    cleanName = string.gsub(cleanName, " %[X%d+%]", "")
-                    
-                    -- Get UUID if it exists
-                    local uuid = nil
-                    if item:FindFirstChild("Configuration") then
-                        local config = item.Configuration
-                        if config:FindFirstChild("UUID") then
-                            uuid = config.UUID.Value
-                        end
-                    end
-                    
-                    table.insert(items, {
-                        name = cleanName,
-                        tool = item,
-                        uuid = uuid
-                    })
-                end
-            end
-        end
-
-        -- Check character (equipped items)
-        if LocalPlayer.Character then
-            for _, item in pairs(LocalPlayer.Character:GetChildren()) do
-                if item:IsA("Tool") then
-                    local cleanName = item.Name
-                    cleanName = string.gsub(cleanName, " %[X%d+%]", "")
-                    
-                    local uuid = nil
-                    if item:FindFirstChild("Configuration") then
-                        local config = item.Configuration
-                        if config:FindFirstChild("UUID") then
-                            uuid = config.UUID.Value
-                        end
-                    end
-                    
-                    table.insert(items, {
-                        name = cleanName,
-                        tool = item,
-                        uuid = uuid
-                    })
-                end
-            end
-        end
-
-        return items
-    end
-
-    -- Function to check if player has required materials for a recipe
-    local function hasRequiredMaterials(recipeName)
-        local recipe = SeedCraftingRecipes[recipeName]
-        if not recipe then return false end
-
-        local inventory = getInventoryItems()
-        local foundMaterials = {}
-
-        for _, requiredInput in pairs(recipe.inputs) do
-            local found = false
-            
-            for _, inventoryItem in pairs(inventory) do
-                if inventoryItem.name == requiredInput.ItemName then
-                    table.insert(foundMaterials, {
-                        item = inventoryItem,
-                        required = requiredInput
-                    })
-                    found = true
-                    break
-                end
-            end
-
-            if not found then
-                return false, requiredInput.ItemName, foundMaterials
-            end
-        end
-
-        return true, nil, foundMaterials
-    end
-
-    -- Function to cancel current recipe
-    local function cancelCurrentRecipe()
+    -- Function to claim/set recipe
+    local function claimRecipe(recipeName)
         local success, err = pcall(function()
-            CraftingGlobalObjectService:FireServer(
-                "Cancel",
-                SeedEventCraftingWorkBench,
-                "SeedEventWorkbench"
-            )
-        end)
-
-        if success then
-            print("✅ Cancelled current recipe")
-            return true
-        else
-            print("❌ Failed to cancel recipe:", err)
-            return false
-        end
-    end
-
-    -- Function to set recipe on the workbench
-    local function setRecipe(recipeName)
-        local success, err = pcall(function()
+            print("🔨 Setting recipe:", recipeName)
             CraftingGlobalObjectService:FireServer(
                 "SetRecipe",
                 SeedEventCraftingWorkBench,
@@ -216,137 +59,25 @@ local function initializeCrafterTab()
         end)
 
         if success then
-            print("✅ Set recipe to:", recipeName)
+            print("✅ Successfully set recipe:", recipeName)
+            Library:Notify("🔨 Set recipe: " .. recipeName, 3)
             return true
         else
             print("❌ Failed to set recipe:", err)
+            Library:Notify("❌ Failed to set recipe: " .. recipeName, 3)
             return false
         end
     end
 
-    -- Function to input an item into the crafter
-    local function inputItem(slotNumber, itemType, uuid)
-        local success, err = pcall(function()
-            CraftingGlobalObjectService:FireServer(
-                "InputItem",
-                SeedEventCraftingWorkBench,
-                "SeedEventWorkbench",
-                slotNumber,
-                {
-                    ItemType = itemType,
-                    ItemData = {
-                        UUID = uuid
-                    }
-                }
-            )
-        end)
-
-        if success then
-            print("✅ Input item into slot " .. slotNumber .. " with UUID:", uuid)
-            return true
-        else
-            print("❌ Failed to input item:", err)
-            return false
-        end
-    end
-
-    -- Function to start crafting a recipe
-    local function startCrafting(recipeName)
-        if CurrentlyCrafting then
-            print("⚠️ Already crafting, please wait...")
-            return false
-        end
-
-        local recipe = SeedCraftingRecipes[recipeName]
-        if not recipe then
-            print("❌ Recipe not found:", recipeName)
-            return false
-        end
-
-        -- Check summer coins
-        local currentCoins = getSummerCoins()
-        if currentCoins < recipe.cost then
-            print("❌ Not enough summer coins. Need:", recipe.cost, "Have:", currentCoins)
-            Library:Notify("❌ Need " .. recipe.cost .. " Summer Coins, have " .. currentCoins, 3)
-            return false
-        end
-
-        -- Check materials
-        local hasMaterials, missingItem, foundMaterials = hasRequiredMaterials(recipeName)
-        if not hasMaterials then
-            print("❌ Missing material:", missingItem)
-            Library:Notify("❌ Missing: " .. missingItem, 3)
-            return false
-        end
-
-        CurrentlyCrafting = true
-        print("🔨 Starting to craft:", recipeName)
-
-        -- Step 1: Cancel any existing recipe
-        cancelCurrentRecipe()
-        task.wait(0.5)
-
-        -- Step 2: Set the new recipe
-        if not setRecipe(recipeName) then
-            CurrentlyCrafting = false
-            return false
-        end
-        task.wait(0.5)
-
-        -- Step 3: Input all required materials
-        for slotIndex, materialData in pairs(foundMaterials) do
-            local item = materialData.item
-            local required = materialData.required
-            
-            if item.uuid then
-                local success = inputItem(slotIndex, required.ItemType, item.uuid)
-                if not success then
-                    CurrentlyCrafting = false
-                    return false
-                end
-                task.wait(0.3) -- Small delay between inputs
-            else
-                print("⚠️ Item has no UUID:", item.name)
-            end
-        end
-
-        CurrentlyCrafting = false
-        Library:Notify("🔨 Started crafting " .. recipeName .. "! Wait " .. math.floor(recipe.timeToCraft/60) .. " minutes.", 3)
-        print("✅ Successfully started crafting:", recipeName)
-        return true
-    end
-
-    -- Function to continuously check and craft
-    local function autoCraftLoop()
-        while AutoSeedCrafterEnabled do
+    -- Auto claim loop
+    local function autoClaimLoop()
+        while AutoClaimEnabled do
             if SelectedRecipe then
-                local recipe = SeedCraftingRecipes[SelectedRecipe]
-                if recipe then
-                    -- Check if we have enough summer coins
-                    local currentCoins = getSummerCoins()
-                    if currentCoins >= recipe.cost then
-                        -- Check if we have materials
-                        local hasMaterials, missingItem = hasRequiredMaterials(SelectedRecipe)
-                        if hasMaterials then
-                            print("🔍 Auto Crafter: Starting craft for " .. SelectedRecipe)
-                            startCrafting(SelectedRecipe)
-                            
-                            -- Wait for the crafting to complete before checking again
-                            task.wait(recipe.timeToCraft + 10) -- Wait craft time + buffer
-                        else
-                            print("⚠️ Auto Crafter: Missing material - " .. (missingItem or "unknown"))
-                            task.wait(30) -- Check again in 30 seconds
-                        end
-                    else
-                        print("⚠️ Auto Crafter: Not enough summer coins. Need: " .. recipe.cost .. ", Have: " .. currentCoins)
-                        task.wait(60) -- Check again in 60 seconds
-                    end
-                end
+                claimRecipe(SelectedRecipe)
             end
-            
-            task.wait(10) -- Check every 10 seconds
+            task.wait(5) -- Wait 5 seconds between claims
         end
-        print("🔨 Auto Seed Crafter loop ended")
+        print("🔨 Auto claim loop ended")
     end
 
     -- ================================================================
@@ -354,99 +85,61 @@ local function initializeCrafterTab()
     -- ================================================================
 
     -- Recipe selection dropdown
-    SeedCrafterGroupBox:AddDropdown("SeedRecipeSelection", {
+    SeedCrafterGroupBox:AddDropdown("RecipeSelection", {
         Values = AvailableRecipes,
         Default = 1,
         Multi = false, -- Single selection only
         Text = "Select Recipe",
-        Tooltip = "Choose which seed recipe to craft automatically",
+        Tooltip = "Choose which recipe to claim/set",
         Callback = function(Value)
             SelectedRecipe = Value
-            print("[cb] Selected seed recipe:", Value)
-            
-            if Value then
-                local recipe = SeedCraftingRecipes[Value]
-                if recipe then
-                    print("Recipe details:")
-                    print("- Cost: " .. recipe.cost .. " Summer Coins")
-                    print("- Time: " .. math.floor(recipe.timeToCraft/60) .. " minutes")
-                    print("- Materials needed:")
-                    for _, input in pairs(recipe.inputs) do
-                        print("  • " .. input.ItemName .. " (" .. input.ItemType .. ")")
-                    end
-                end
-            end
+            print("[cb] Selected recipe:", Value)
         end,
     })
 
-    -- Auto craft toggle
-    SeedCrafterGroupBox:AddToggle("AutoSeedCrafter", {
-        Text = "🌱 Auto Seed Crafter",
+    -- Auto claim toggle
+    SeedCrafterGroupBox:AddToggle("AutoClaim", {
+        Text = "🔨 Auto Claim Recipe",
         Default = false,
-        Tooltip = "Automatically craft the selected seed recipe when you have materials and summer coins",
+        Tooltip = "Automatically claim/set the selected recipe every 5 seconds",
         Callback = function(Value)
-            AutoSeedCrafterEnabled = Value
-            print("[cb] Auto Seed Crafter toggled:", Value)
+            AutoClaimEnabled = Value
+            print("[cb] Auto Claim toggled:", Value)
             
             if Value then
                 if not SelectedRecipe then
                     Library:Notify("⚠️ Please select a recipe first!", 3)
-                    Toggles.AutoSeedCrafter:SetValue(false)
+                    Toggles.AutoClaim:SetValue(false)
                     return
                 end
 
-                local recipe = SeedCraftingRecipes[SelectedRecipe]
-                Library:Notify("🌱 Auto Seed Crafter enabled for " .. SelectedRecipe .. " (Cost: " .. recipe.cost .. " coins)", 3)
+                Library:Notify("🔨 Auto Claim enabled for " .. SelectedRecipe, 3)
                 
-                -- Start the auto craft loop
-                task.spawn(autoCraftLoop)
+                -- Start the auto claim loop
+                task.spawn(autoClaimLoop)
             else
-                Library:Notify("🌱 Auto Seed Crafter disabled!", 3)
+                Library:Notify("🔨 Auto Claim disabled!", 3)
             end
         end
     })
 
     SeedCrafterGroupBox:AddDivider()
 
-    -- Manual craft button
-    SeedCrafterGroupBox:AddButton("🔨 Craft Selected Recipe Now", function()
+    -- Manual claim button
+    SeedCrafterGroupBox:AddButton("🔨 Claim Recipe Now", function()
         if not SelectedRecipe then
             Library:Notify("⚠️ Please select a recipe first!", 3)
             return
         end
         
-        startCrafting(SelectedRecipe)
-    end)
-
-    -- Status checking buttons
-    SeedCrafterGroupBox:AddButton("💰 Check Summer Coins", function()
-        local coins = getSummerCoins()
-        Library:Notify("💰 Summer Coins: " .. coins, 3)
-        print("Current Summer Coins:", coins)
-    end)
-
-    SeedCrafterGroupBox:AddButton("📦 Check Inventory", function()
-        local items = getInventoryItems()
-        print("=== INVENTORY CHECK ===")
-        for _, item in pairs(items) do
-            print("- " .. item.name .. " (UUID: " .. (item.uuid or "N/A") .. ")")
-        end
-        Library:Notify("📦 Found " .. #items .. " items - check console", 3)
-    end)
-
-    SeedCrafterGroupBox:AddButton("🗑️ Cancel Current Recipe", function()
-        if cancelCurrentRecipe() then
-            Library:Notify("🗑️ Cancelled current recipe", 3)
-        else
-            Library:Notify("❌ Failed to cancel recipe", 3)
-        end
+        claimRecipe(SelectedRecipe)
     end)
 
     -- ================================================================
     -- SUCCESS MESSAGE
     -- ================================================================
-    Library:Notify("🌱 Seed Crafter loaded successfully!", 3)
-    print("🌱 Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
+    Library:Notify("🔨 Simple Seed Crafter loaded!", 3)
+    print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
 
     return true
 end
@@ -460,7 +153,7 @@ if getgenv and getgenv().MainScriptLoaded then
     -- Main script is already loaded, initialize immediately
     local success = initializeCrafterTab()
     if success then
-        print("✅ Seed Crafter successfully integrated!")
+        print("✅ Simple Seed Crafter successfully integrated!")
     end
 else
     -- Wait for main script to load, then initialize
@@ -474,7 +167,7 @@ else
             if getgenv and getgenv().MainScriptLoaded and Tabs and Window and Library then
                 local success = initializeCrafterTab()
                 if success then
-                    print("✅ Seed Crafter successfully integrated after waiting!")
+                    print("✅ Simple Seed Crafter successfully integrated after waiting!")
                     return true
                 end
             end
@@ -483,7 +176,7 @@ else
             waited = waited + 0.5
         end
         
-        warn("⚠️ Seed Crafter: Timed out waiting for main script")
+        warn("⚠️ Simple Seed Crafter: Timed out waiting for main script")
         return false
     end
     
@@ -497,7 +190,7 @@ end
 
 return {
     initialize = initializeCrafterTab,
-    name = "Seed Crafter",
-    version = "2.0.0",
+    name = "Simple Seed Crafter",
+    version = "1.0.0",
     repository = "Resn"
 }
