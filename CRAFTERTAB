@@ -42,9 +42,80 @@ local function initializeCrafterTab()
         "Guanabana"
     }
 
+    -- Recipe data for inventory checking
+    local RecipeData = {
+        ["Peace Lily"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Rafflesia"},
+                {ItemType = "Seed", ItemName = "Cauliflower"}
+            },
+            Cost = {CurrencyType = "SummerCoins", Amount = 3}
+        },
+        ["Aloe Vera"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Peace Lily"},
+                {ItemType = "Holdable", ItemName = "Prickly Pear"}
+            },
+            Cost = {CurrencyType = "SummerCoins", Amount = 18}
+        },
+        ["Guanabana"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Aloe Vera"},
+                {ItemType = "Seed", ItemName = "Prickly Pear"},
+                {ItemType = "Holdable", ItemName = "Banana"}
+            },
+            Cost = {CurrencyType = "SummerCoins", Amount = 30}
+        }
+    }
+
     -- ================================================================
     -- HELPER FUNCTIONS
     -- ================================================================
+
+    -- Function to check inventory for specific items
+    local function checkInventoryForItems(recipe)
+        if not recipe or not recipe.Inputs then return {} end
+        
+        local inventoryStatus = {}
+        
+        for _, input in ipairs(recipe.Inputs) do
+            local itemName = input.ItemName
+            local hasItem = false
+            local itemCount = 0
+            
+            -- Check backpack for items
+            if LocalPlayer.Backpack then
+                for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                    if tool.Name:find(itemName) then
+                        hasItem = true
+                        -- Try to extract quantity from name (e.g., "Carrot Seed [X5]")
+                        local quantityMatch = tool.Name:match("%[X(%d+)%]")
+                        itemCount = itemCount + (tonumber(quantityMatch) or 1)
+                    end
+                end
+            end
+            
+            table.insert(inventoryStatus, {
+                ItemName = itemName,
+                ItemType = input.ItemType,
+                HasItem = hasItem,
+                Count = itemCount
+            })
+        end
+        
+        return inventoryStatus
+    end
+
+    -- Function to print inventory status to console
+    local function printInventoryStatus(recipeName, inventoryStatus)
+        print("==== INVENTORY CHECK FOR " .. recipeName .. " ====")
+        for _, item in ipairs(inventoryStatus) do
+            local status = item.HasItem and "✓ HAVE" or "✗ MISSING"
+            local countText = item.HasItem and " (Count: " .. item.Count .. ")" or ""
+            print(status .. " - " .. item.ItemType .. ": " .. item.ItemName .. countText)
+        end
+        print("================================")
+    end
 
     -- Function to claim/set recipe
     local function claimRecipe(recipeName)
@@ -101,7 +172,7 @@ local function initializeCrafterTab()
     SeedCrafterGroupBox:AddToggle("AutoClaim", {
         Text = "🔨 Auto Claim Recipe",
         Default = false,
-        Tooltip = "Automatically claim/set the selected recipe every 5 seconds",
+        Tooltip = "Automatically claim/set the selected recipe every 5 seconds and check inventory",
         Callback = function(Value)
             AutoClaimEnabled = Value
             print("[cb] Auto Claim toggled:", Value)
@@ -115,6 +186,15 @@ local function initializeCrafterTab()
 
                 Library:Notify("🔨 Auto Claim enabled for " .. SelectedRecipe, 3)
                 
+                -- Step 2: Check inventory when toggle is enabled
+                local recipeData = RecipeData[SelectedRecipe]
+                if recipeData then
+                    local inventoryStatus = checkInventoryForItems(recipeData)
+                    printInventoryStatus(SelectedRecipe, inventoryStatus)
+                else
+                    print("⚠️ Recipe data not found for:", SelectedRecipe)
+                end
+                
                 -- Start the auto claim loop
                 task.spawn(autoClaimLoop)
             else
@@ -124,6 +204,24 @@ local function initializeCrafterTab()
     })
 
     SeedCrafterGroupBox:AddDivider()
+
+    -- Manual inventory check button
+    SeedCrafterGroupBox:AddButton("📦 Check Inventory", function()
+        if not SelectedRecipe then
+            Library:Notify("⚠️ Please select a recipe first!", 3)
+            return
+        end
+        
+        local recipeData = RecipeData[SelectedRecipe]
+        if recipeData then
+            local inventoryStatus = checkInventoryForItems(recipeData)
+            printInventoryStatus(SelectedRecipe, inventoryStatus)
+            Library:Notify("📦 Inventory check completed - see console", 3)
+        else
+            print("⚠️ Recipe data not found for:", SelectedRecipe)
+            Library:Notify("⚠️ Recipe data not found!", 3)
+        end
+    end)
 
     -- Manual claim button
     SeedCrafterGroupBox:AddButton("🔨 Claim Recipe Now", function()
