@@ -8,7 +8,7 @@
 -- LIBRARY INITIALIZATION
 -- ================================================================
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+Library = loadstring(game:HttpGet(repo .. "Library.lua"))() -- Made global for CRAFTERTAB
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
@@ -23,7 +23,7 @@ Library.ShowToggleFrameInKeybinds = true
 -- ================================================================
 -- WINDOW CREATION
 -- ================================================================
-local Window = Library:CreateWindow({
+Window = Library:CreateWindow({ -- Made global for CRAFTERTAB
 	Title = "REFACTOR",
 	Footer = "MADE MY MICHEAL DOXINS",
 	Icon = 137010157074208,
@@ -57,7 +57,7 @@ local Plant_RE = Services.ReplicatedStorage.GameEvents.Plant_RE
 -- ================================================================
 -- TAB STRUCTURE (Exact from SloppyCoding)
 -- ================================================================
-local Tabs = {
+Tabs = { -- Made global for CRAFTERTAB
 	Main = Window:AddTab("Main", "user"),
 	Auto = Window:AddTab("Auto", "zap"),
 	Store = Window:AddTab("Store", "shopping-cart"),
@@ -8812,14 +8812,22 @@ end)
 -- Set global flag to indicate main script is loaded
 if getgenv then
     getgenv().MainScriptLoaded = true
+    -- Make essential variables globally accessible for CRAFTERTAB
+    getgenv().Library = Library
+    getgenv().Window = Window
+    getgenv().Tabs = Tabs
 end
 
 -- Auto-load Crafter Tab from GitHub
 local function loadCrafterTab()
     local success, result = pcall(function()
         print("🔨 Loading Crafter Tab from GitHub...")
-        local githubUrl = "https://raw.githubusercontent.com/bilyudyfosydf/Resn/main/CRAFTERTAB"
+        -- Use the correct GitHub raw URL
+        local githubUrl = "https://raw.githubusercontent.com/bihyudyfosydf/Resn/refs/heads/main/CRAFTERTAB"
+        
         local response = game:HttpGet(githubUrl)
+        print("📥 Response length:", #response)
+        
         if response and #response > 0 then
             return loadstring(response)()
         else
@@ -8834,8 +8842,9 @@ local function loadCrafterTab()
         print("⚠️ Could not load Crafter Tab:", tostring(result))
         Library:Notify("⚠️ Crafter Tab failed to load - check console for details", 3)
         
-        -- Fallback notification
-        Library:Notify("💡 Tip: Make sure CRAFTERTAB file is uploaded to your GitHub repository", 5)
+        -- Additional debug info
+        print("� Debug: Make sure the CRAFTERTAB file exists at:")
+        print("   https://raw.githubusercontent.com/bihyudyfosydf/Resn/refs/heads/main/CRAFTERTAB")
     end
 end
 
