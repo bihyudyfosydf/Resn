@@ -166,13 +166,45 @@ local function initializeCrafterTab()
         end
     end
 
-    -- Auto claim loop
+    -- Auto claim loop with continuous checking
     local function autoClaimLoop()
         while AutoClaimEnabled do
             if SelectedRecipe then
-                claimRecipe(SelectedRecipe)
+                -- Continuously check inventory and currency
+                local recipeData = RecipeData[SelectedRecipe]
+                if recipeData then
+                    local inventoryStatus = checkInventoryForItems(recipeData)
+                    local coinStatus = checkSummerCoins(recipeData.Cost.Amount)
+                    
+                    -- Print current status
+                    printInventoryStatus(SelectedRecipe, inventoryStatus)
+                    printCurrencyStatus(SelectedRecipe, coinStatus)
+                    
+                    -- Check if we have all items and enough coins
+                    local hasAllItems = true
+                    for _, item in ipairs(inventoryStatus) do
+                        if not item.HasItem then
+                            hasAllItems = false
+                            break
+                        end
+                    end
+                    
+                    if hasAllItems and coinStatus.HasEnough then
+                        print("🎯 ALL REQUIREMENTS MET! Attempting to claim recipe...")
+                        claimRecipe(SelectedRecipe)
+                    else
+                        if not hasAllItems then
+                            print("⏳ Waiting for required items...")
+                        end
+                        if not coinStatus.HasEnough then
+                            print("⏳ Waiting for enough Summer Coins...")
+                        end
+                    end
+                else
+                    print("⚠️ Recipe data not found for:", SelectedRecipe)
+                end
             end
-            task.wait(5) -- Wait 5 seconds between claims
+            task.wait(3) -- Check every 3 seconds
         end
         print("🔨 Auto claim loop ended")
     end
@@ -196,39 +228,27 @@ local function initializeCrafterTab()
 
     -- Auto claim toggle
     SeedCrafterGroupBox:AddToggle("AutoClaim", {
-        Text = "🔨 Auto Claim Recipe",
+        Text = "🔨 Auto Craft Monitor",
         Default = false,
-        Tooltip = "Automatically claim/set the selected recipe every 5 seconds and check inventory",
+        Tooltip = "Continuously monitor inventory and Summer Coins, auto-craft when requirements are met",
         Callback = function(Value)
             AutoClaimEnabled = Value
             print("[cb] Auto Claim toggled:", Value)
             
             if Value then
                 if not SelectedRecipe then
-                    -- Library:Notify("⚠️ Please select a recipe first!", 3) -- Disabled notification
+                    print("⚠️ Please select a recipe first!")
                     Toggles.AutoClaim:SetValue(false)
                     return
                 end
 
-                -- Library:Notify("🔨 Auto Claim enabled for " .. SelectedRecipe, 3) -- Disabled notification
+                print("🔨 Auto Craft Monitor enabled for " .. SelectedRecipe)
+                print("⏳ Starting continuous monitoring...")
                 
-                -- Step 2: Check inventory when toggle is enabled
-                local recipeData = RecipeData[SelectedRecipe]
-                if recipeData then
-                    local inventoryStatus = checkInventoryForItems(recipeData)
-                    printInventoryStatus(SelectedRecipe, inventoryStatus)
-                    
-                    -- Check Summer Coins
-                    local coinStatus = checkSummerCoins(recipeData.Cost.Amount)
-                    printCurrencyStatus(SelectedRecipe, coinStatus)
-                else
-                    print("⚠️ Recipe data not found for:", SelectedRecipe)
-                end
-                
-                -- Start the auto claim loop
+                -- Start the auto claim loop with continuous checking
                 task.spawn(autoClaimLoop)
             else
-                -- Library:Notify("🔨 Auto Claim disabled!", 3) -- Disabled notification
+                print("🔨 Auto Craft Monitor disabled!")
             end
         end
     })
@@ -238,7 +258,7 @@ local function initializeCrafterTab()
     -- Manual inventory check button
     SeedCrafterGroupBox:AddButton("📦 Check Inventory", function()
         if not SelectedRecipe then
-            Library:Notify("⚠️ Please select a recipe first!", 3)
+            print("⚠️ Please select a recipe first!")
             return
         end
         
@@ -261,7 +281,7 @@ local function initializeCrafterTab()
     -- Manual claim button
     SeedCrafterGroupBox:AddButton("🔨 Claim Recipe Now", function()
         if not SelectedRecipe then
-            -- Library:Notify("⚠️ Please select a recipe first!", 3) -- Disabled notification
+            print("⚠️ Please select a recipe first!")
             return
         end
         
