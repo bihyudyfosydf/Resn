@@ -168,6 +168,10 @@ local function initializeCrafterTab()
 
     -- Auto claim loop with continuous checking
     local function autoClaimLoop()
+        local lastInventoryStatus = {}
+        local lastCoinStatus = {}
+        local lastStatusPrint = 0
+        
         while AutoClaimEnabled do
             if SelectedRecipe then
                 -- Continuously check inventory and currency
@@ -175,10 +179,6 @@ local function initializeCrafterTab()
                 if recipeData then
                     local inventoryStatus = checkInventoryForItems(recipeData)
                     local coinStatus = checkSummerCoins(recipeData.Cost.Amount)
-                    
-                    -- Print current status
-                    printInventoryStatus(SelectedRecipe, inventoryStatus)
-                    printCurrencyStatus(SelectedRecipe, coinStatus)
                     
                     -- Check if we have all items and enough coins
                     local hasAllItems = true
@@ -189,14 +189,44 @@ local function initializeCrafterTab()
                         end
                     end
                     
+                    -- Only print status every 10 seconds or when status changes
+                    local currentTime = tick()
+                    local statusChanged = false
+                    
+                    -- Check if inventory status changed
+                    for i, item in ipairs(inventoryStatus) do
+                        if not lastInventoryStatus[i] or 
+                           lastInventoryStatus[i].HasItem ~= item.HasItem or
+                           lastInventoryStatus[i].Count ~= item.Count then
+                            statusChanged = true
+                            break
+                        end
+                    end
+                    
+                    -- Check if coin status changed
+                    if not lastCoinStatus.Current or lastCoinStatus.Current ~= coinStatus.Current then
+                        statusChanged = true
+                    end
+                    
+                    -- Print status if changed or every 10 seconds
+                    if statusChanged or (currentTime - lastStatusPrint) >= 10 then
+                        printInventoryStatus(SelectedRecipe, inventoryStatus)
+                        printCurrencyStatus(SelectedRecipe, coinStatus)
+                        lastStatusPrint = currentTime
+                        lastInventoryStatus = inventoryStatus
+                        lastCoinStatus = coinStatus
+                    end
+                    
                     if hasAllItems and coinStatus.HasEnough then
                         print("🎯 ALL REQUIREMENTS MET! Attempting to claim recipe...")
                         claimRecipe(SelectedRecipe)
+                        -- After successful craft, wait longer before next check
+                        task.wait(5)
                     else
-                        if not hasAllItems then
+                        if not hasAllItems and statusChanged then
                             print("⏳ Waiting for required items...")
                         end
-                        if not coinStatus.HasEnough then
+                        if not coinStatus.HasEnough and statusChanged then
                             print("⏳ Waiting for enough Summer Coins...")
                         end
                     end
@@ -204,7 +234,7 @@ local function initializeCrafterTab()
                     print("⚠️ Recipe data not found for:", SelectedRecipe)
                 end
             end
-            task.wait(3) -- Check every 3 seconds
+            task.wait(2) -- Check every 2 seconds, but only print when needed
         end
         print("🔨 Auto claim loop ended")
     end
