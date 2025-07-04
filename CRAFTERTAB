@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter", "hammer")
+    local CrafterTab = Window:AddTab("Crafterv1", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -553,54 +553,9 @@ local function initializeCrafterTab()
         return nil, nil
     end
 
-    -- Function to automatically input items into recipe
+    -- Function to automatically input items into recipe (enhanced with auto-craft)
     local function autoInputItems(recipeData)
-        if not recipeData or not recipeData.Inputs then return false end
-        
-        print("🔄 Auto-inputting items for recipe...")
-        local allItemsInput = true
-        
-        for inputSlot, input in ipairs(recipeData.Inputs) do
-            local itemName = input.ItemName
-            local itemType = input.ItemType
-            
-            -- Find the item UUID in player's backpack
-            local uuid, tool = findItemUUID(itemName)
-            
-            if uuid and tool then
-                print("📦 Found " .. itemName .. " with UUID: " .. uuid)
-                
-                -- Input the item into the recipe slot
-                local success, err = pcall(function()
-                    CraftingGlobalObjectService:FireServer(
-                        "InputItem",
-                        SeedEventCraftingWorkBench,
-                        "SeedEventWorkbench",
-                        inputSlot, -- Slot number (1, 2, 3, etc.)
-                        {
-                            ItemType = itemType,
-                            ItemData = {
-                                UUID = uuid
-                            }
-                        }
-                    )
-                end)
-                
-                if success then
-                    print("✅ Successfully input " .. itemName .. " into slot " .. inputSlot)
-                else
-                    print("❌ Failed to input " .. itemName .. ": " .. tostring(err))
-                    allItemsInput = false
-                end
-                
-                task.wait(0.5) -- Small delay between inputs
-            else
-                print("❌ Could not find " .. itemName .. " in inventory")
-                allItemsInput = false
-            end
-        end
-        
-        return allItemsInput
+        return autoInputItemsAndCraft(recipeData, SeedEventCraftingWorkBench, "SeedEventWorkbench")
     end
     local function claimRecipe(recipeName)
         local success, err = pcall(function()
@@ -753,29 +708,96 @@ local function initializeCrafterTab()
         end
     end
 
-    -- Function to automatically input gear items into recipe
+    -- Function to automatically input gear items into recipe (enhanced with auto-craft)
     local function autoInputGearItems(recipeData)
+        return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
+    end
+
+    -- Function to start crafting after items are input
+    local function startCrafting(workbench, workbenchType)
+        local success, err = pcall(function()
+            print("⚙️ Starting crafting process...")
+            CraftingGlobalObjectService:FireServer(
+                "Craft",
+                workbench,
+                workbenchType
+            )
+        end)
+        
+        if success then
+            print("✅ Successfully started crafting!")
+            return true
+        else
+            print("❌ Failed to start crafting:", err)
+            return false
+        end
+    end
+
+    -- Function to claim finished crafted items
+    local function claimCraftedItems(workbench, workbenchType, slotNumber)
+        slotNumber = slotNumber or 1 -- Default to slot 1
+        local success, err = pcall(function()
+            print("🎁 Claiming crafted items...")
+            CraftingGlobalObjectService:FireServer(
+                "Claim",
+                workbench,
+                workbenchType,
+                slotNumber
+            )
+        end)
+        
+        if success then
+            print("✅ Successfully claimed crafted items!")
+            return true
+        else
+            print("❌ Failed to claim items:", err)
+            return false
+        end
+    end
+
+    -- Function to check if crafting is complete
+    local function isCraftingComplete(workbench, workbenchType)
+        local success, result = pcall(function()
+            local CraftingGlobalObjectService_module = require(ReplicatedStorage.Modules.CraftingService.CraftingGlobalObjectService)
+            local machineData = CraftingGlobalObjectService_module:GetIndividualCraftingMachineData(workbench, workbenchType)
+            
+            if machineData and machineData.CraftingItems and machineData.CraftingItems[1] then
+                return machineData.CraftingItems[1].IsDone
+            end
+            return false
+        end)
+        
+        if success then
+            return result
+        else
+            print("⚠️ Could not check crafting status:", result)
+            return false
+        end
+    end
+
+    -- Enhanced auto input items function with automatic crafting
+    local function autoInputItemsAndCraft(recipeData, workbench, workbenchType)
         if not recipeData or not recipeData.Inputs then return false end
         
-        print("🔄 Auto-inputting gear items for recipe...")
+        print("🔄 Auto-inputting items and starting craft for recipe...")
         local allItemsInput = true
         
         for inputSlot, input in ipairs(recipeData.Inputs) do
             local itemName = input.ItemName
             local itemType = input.ItemType
             
-            -- Find the item UUID in player's backpack using the existing function
+            -- Find the item UUID in player's backpack
             local uuid, tool = findItemUUID(itemName)
             
             if uuid and tool then
                 print("📦 Found " .. itemName .. " with UUID: " .. uuid)
                 
-                -- Input the item into the gear recipe slot using the gear workbench
+                -- Input the item into the recipe slot
                 local success, err = pcall(function()
                     CraftingGlobalObjectService:FireServer(
                         "InputItem",
-                        workspace.CraftingTables.EventCraftingWorkBench,
-                        "GearEventWorkbench",
+                        workbench,
+                        workbenchType,
                         inputSlot, -- Slot number (1, 2, 3, etc.)
                         {
                             ItemType = itemType,
@@ -787,7 +809,7 @@ local function initializeCrafterTab()
                 end)
                 
                 if success then
-                    print("✅ Successfully input " .. itemName .. " into gear slot " .. inputSlot)
+                    print("✅ Successfully input " .. itemName .. " into slot " .. inputSlot)
                 else
                     print("❌ Failed to input " .. itemName .. ": " .. tostring(err))
                     allItemsInput = false
@@ -800,22 +822,45 @@ local function initializeCrafterTab()
             end
         end
         
-        return allItemsInput
-    end
-
-    -- Simple auto claim loop - just claim continuously
-    local function autoClaimLoop()
-        print("🔨 Starting simple auto claim loop for:", SelectedRecipe)
-        
-        while AutoClaimEnabled do
-            if SelectedRecipe then
-                claimRecipe(SelectedRecipe)
-                task.wait(3) -- Wait 3 seconds between claims
-            else
-                task.wait(1)
+        -- If all items were successfully input, start crafting
+        if allItemsInput then
+            task.wait(1) -- Wait a moment for items to register
+            print("🚀 All items input successfully! Starting crafting...")
+            
+            local craftStarted = startCrafting(workbench, workbenchType)
+            if craftStarted then
+                print("⏳ Crafting started! Monitoring for completion...")
+                
+                -- Monitor crafting progress
+                task.spawn(function()
+                    local maxWaitTime = 300 -- 5 minutes max wait
+                    local waitedTime = 0
+                    local checkInterval = 2 -- Check every 2 seconds
+                    
+                    while waitedTime < maxWaitTime do
+                        if isCraftingComplete(workbench, workbenchType) then
+                            print("🎉 Crafting completed! Auto-claiming...")
+                            task.wait(1) -- Small delay before claiming
+                            claimCraftedItems(workbench, workbenchType)
+                            break
+                        end
+                        
+                        task.wait(checkInterval)
+                        waitedTime = waitedTime + checkInterval
+                        
+                        if waitedTime % 30 == 0 then -- Progress update every 30 seconds
+                            print("⏳ Still crafting... (" .. waitedTime .. "s elapsed)")
+                        end
+                    end
+                    
+                    if waitedTime >= maxWaitTime then
+                        print("⚠️ Crafting timeout reached. You may need to manually claim.")
+                    end
+                end)
             end
         end
-        print("🔨 Auto claim loop ended")
+        
+        return allItemsInput
     end
 
     -- ================================================================
@@ -837,9 +882,9 @@ local function initializeCrafterTab()
 
     -- Auto claim toggle
     SeedCrafterGroupBox:AddToggle("AutoClaim", {
-        Text = "🔨 Auto Craft Recipe",
+        Text = "🔨 Auto Craft Recipe (Full Auto)",
         Default = false,
-        Tooltip = "Set recipe and automatically input available items from inventory",
+        Tooltip = "Set recipe, input items, start crafting, and auto-claim when done - fully automatic!",
         Callback = function(Value)
             print("[cb] Auto Craft Recipe toggled:", Value)
             
@@ -910,6 +955,23 @@ local function initializeCrafterTab()
         claimRecipe(SelectedRecipe)
     end)
 
+    -- Manual craft start button
+    SeedCrafterGroupBox:AddButton("🚀 Start Crafting", function()
+        if not SelectedRecipe then
+            print("⚠️ Please select a recipe first!")
+            return
+        end
+        
+        print("🚀 Manually starting crafting for:", SelectedRecipe)
+        startCrafting(SeedEventCraftingWorkBench, "SeedEventWorkbench")
+    end)
+
+    -- Manual claim crafted items button
+    SeedCrafterGroupBox:AddButton("🎁 Claim Crafted Items", function()
+        print("🎁 Manually claiming crafted items...")
+        claimCraftedItems(SeedEventCraftingWorkBench, "SeedEventWorkbench")
+    end)
+
     -- ================================================================
     -- GEAR CRAFTER UI ELEMENTS  
     -- ================================================================
@@ -929,9 +991,9 @@ local function initializeCrafterTab()
 
     -- Auto gear claim toggle
     GearCrafterGroupBox:AddToggle("AutoGearClaim", {
-        Text = "⚙️ Auto Craft Gear",
+        Text = "⚙️ Auto Craft Gear (Full Auto)",
         Default = false,
-        Tooltip = "Set gear recipe and automatically input available items from inventory",
+        Tooltip = "Set gear recipe, input items, start crafting, and auto-claim when done - fully automatic!",
         Callback = function(Value)
             print("[cb] Auto Craft Gear toggled:", Value)
             
@@ -998,6 +1060,23 @@ local function initializeCrafterTab()
         else
             print("⚠️ Gear recipe data not found for:", SelectedGearRecipe)
         end
+    end)
+
+    -- Manual gear craft start button
+    GearCrafterGroupBox:AddButton("🚀 Start Gear Crafting", function()
+        if not SelectedGearRecipe then
+            print("⚠️ Please select a gear recipe first!")
+            return
+        end
+        
+        print("🚀 Manually starting gear crafting for:", SelectedGearRecipe)
+        startCrafting(workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
+    end)
+
+    -- Manual claim gear crafted items button
+    GearCrafterGroupBox:AddButton("🎁 Claim Gear Items", function()
+        print("🎁 Manually claiming gear crafted items...")
+        claimCraftedItems(workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
     end)
 
     -- ================================================================
