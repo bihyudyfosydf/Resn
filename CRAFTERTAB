@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter1.2", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.3", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -143,7 +143,82 @@ local function initializeCrafterTab()
         print("================================")
     end
 
-    -- Function to claim/set recipe
+    -- Function to find item UUID in player's backpack
+    local function findItemUUID(itemName)
+        if not LocalPlayer.Backpack then return nil end
+        
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            if tool.Name:find(itemName) then
+                -- Try to find UUID attribute or in tool data
+                local uuid = tool:GetAttribute("UUID")
+                if not uuid then
+                    -- Check for UUID in tool's configuration or data
+                    local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
+                    if config then
+                        local uuidValue = config:FindFirstChild("UUID")
+                        if uuidValue then
+                            uuid = uuidValue.Value
+                        end
+                    end
+                end
+                
+                if uuid then
+                    return uuid, tool
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Function to automatically input items into recipe
+    local function autoInputItems(recipeData)
+        if not recipeData or not recipeData.Inputs then return false end
+        
+        print("🔄 Auto-inputting items for recipe...")
+        local allItemsInput = true
+        
+        for inputSlot, input in ipairs(recipeData.Inputs) do
+            local itemName = input.ItemName
+            local itemType = input.ItemType
+            
+            -- Find the item UUID in player's backpack
+            local uuid, tool = findItemUUID(itemName)
+            
+            if uuid and tool then
+                print("📦 Found " .. itemName .. " with UUID: " .. uuid)
+                
+                -- Input the item into the recipe slot
+                local success, err = pcall(function()
+                    CraftingGlobalObjectService:FireServer(
+                        "InputItem",
+                        SeedEventCraftingWorkBench,
+                        "SeedEventWorkbench",
+                        inputSlot, -- Slot number (1, 2, 3, etc.)
+                        {
+                            ItemType = itemType,
+                            ItemData = {
+                                UUID = uuid
+                            }
+                        }
+                    )
+                end)
+                
+                if success then
+                    print("✅ Successfully input " .. itemName .. " into slot " .. inputSlot)
+                else
+                    print("❌ Failed to input " .. itemName .. ": " .. tostring(err))
+                    allItemsInput = false
+                end
+                
+                task.wait(0.5) -- Small delay between inputs
+            else
+                print("❌ Could not find " .. itemName .. " in inventory")
+                allItemsInput = false
+            end
+        end
+        
+        return allItemsInput
+    end
     local function claimRecipe(recipeName)
         local success, err = pcall(function()
             print("🔨 Setting recipe:", recipeName)
@@ -200,11 +275,11 @@ local function initializeCrafterTab()
 
     -- Auto claim toggle
     SeedCrafterGroupBox:AddToggle("AutoClaim", {
-        Text = "🔨 Claim Recipe",
+        Text = "🔨 Auto Craft Recipe",
         Default = false,
-        Tooltip = "Claim the selected recipe once when toggled on",
+        Tooltip = "Set recipe and automatically input available items from inventory",
         Callback = function(Value)
-            print("[cb] Claim Recipe toggled:", Value)
+            print("[cb] Auto Craft Recipe toggled:", Value)
             
             if Value then
                 if not SelectedRecipe then
@@ -217,10 +292,19 @@ local function initializeCrafterTab()
                     return
                 end
 
-                print("🔨 Claiming recipe:", SelectedRecipe)
-                claimRecipe(SelectedRecipe)
+                print("🔨 Auto-crafting recipe:", SelectedRecipe)
                 
-                -- Turn toggle back off after claiming once (with delay to avoid errors)
+                -- Step 1: Set the recipe
+                claimRecipe(SelectedRecipe)
+                task.wait(1) -- Wait for recipe to be set
+                
+                -- Step 2: Auto-input available items
+                local recipeData = RecipeData[SelectedRecipe]
+                if recipeData then
+                    autoInputItems(recipeData)
+                end
+                
+                -- Turn toggle back off after processing
                 task.wait(0.1)
                 if Toggles and Toggles.AutoClaim then
                     Toggles.AutoClaim:SetValue(false)
