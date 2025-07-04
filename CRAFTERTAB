@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.8", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.9", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -653,6 +653,156 @@ local function initializeCrafterTab()
         end
     end
 
+    -- Function to automatically input items into recipe
+    local function autoInputItems(recipeData)
+        if not recipeData or not recipeData.Inputs then return false end
+        
+        print("🔄 Auto-inputting items for recipe...")
+        local allItemsInput = true
+        
+        for inputSlot, input in ipairs(recipeData.Inputs) do
+            local itemName = input.ItemName
+            local itemType = input.ItemType
+            
+            -- Find the item UUID in player's backpack
+            local uuid, tool = findItemUUID(itemName)
+            
+            if uuid and tool then
+                print("📦 Found " .. itemName .. " with UUID: " .. uuid)
+                
+                -- Input the item into the recipe slot
+                local success, err = pcall(function()
+                    CraftingGlobalObjectService:FireServer(
+                        "InputItem",
+                        SeedEventCraftingWorkBench,
+                        "SeedEventWorkbench",
+                        inputSlot, -- Slot number (1, 2, 3, etc.)
+                        {
+                            ItemType = itemType,
+                            ItemData = {
+                                UUID = uuid
+                            }
+                        }
+                    )
+                end)
+                
+                if success then
+                    print("✅ Successfully input " .. itemName .. " into slot " .. inputSlot)
+                else
+                    print("❌ Failed to input " .. itemName .. ": " .. tostring(err))
+                    allItemsInput = false
+                end
+                
+                task.wait(0.5) -- Small delay between inputs
+            else
+                print("❌ Could not find " .. itemName .. " in inventory")
+                allItemsInput = false
+            end
+        end
+        
+        return allItemsInput
+    end
+    local function claimRecipe(recipeName)
+        local success, err = pcall(function()
+            print("🔨 Setting recipe:", recipeName)
+            CraftingGlobalObjectService:FireServer(
+                "SetRecipe",
+                SeedEventCraftingWorkBench,
+                "SeedEventWorkbench",
+                recipeName
+            )
+        end)
+
+        if success then
+            print("✅ Successfully set recipe:", recipeName)
+            -- Library:Notify("🔨 Set recipe: " .. recipeName, 3) -- Disabled notification
+            return true
+        else
+            print("❌ Failed to set recipe:", err)
+            -- Library:Notify("❌ Failed to set recipe: " .. recipeName, 3) -- Disabled notification
+            return false
+        end
+    end
+
+    -- Function to claim gear recipe
+    local function claimGearRecipe(recipeName)
+        local success, err = pcall(function()
+            print("⚙️ Setting gear recipe:", recipeName)
+            local EventCraftingWorkBench = workspace.CraftingTables.EventCraftingWorkBench
+            local SelectCraftingRecipeBindableEvent = ReplicatedStorage.GameEvents.SelectCraftingRecipeBindableEvent
+            
+            local recipeData = GearRecipeData[recipeName]
+            if not recipeData then
+                error("Recipe data not found for: " .. recipeName)
+            end
+            
+            -- Fire the bindable event with the recipe data
+            SelectCraftingRecipeBindableEvent:Fire(
+                EventCraftingWorkBench,
+                recipeName,
+                recipeData
+            )
+        end)
+
+        if success then
+            print("✅ Successfully set gear recipe:", recipeName)
+            return true
+        else
+            print("❌ Failed to set gear recipe:", err)
+            return false
+        end
+    end
+
+    -- Function to automatically input gear items into recipe
+    local function autoInputGearItems(recipeData)
+        if not recipeData or not recipeData.Inputs then return false end
+        
+        print("🔄 Auto-inputting gear items for recipe...")
+        local allItemsInput = true
+        
+        for inputSlot, input in ipairs(recipeData.Inputs) do
+            local itemName = input.ItemName
+            local itemType = input.ItemType
+            
+            -- Find the item UUID in player's backpack using the existing function
+            local uuid, tool = findItemUUID(itemName)
+            
+            if uuid and tool then
+                print("📦 Found " .. itemName .. " with UUID: " .. uuid)
+                
+                -- Input the item into the gear recipe slot using the gear workbench
+                local success, err = pcall(function()
+                    CraftingGlobalObjectService:FireServer(
+                        "InputItem",
+                        workspace.CraftingTables.EventCraftingWorkBench,
+                        "GearEventWorkbench",
+                        inputSlot, -- Slot number (1, 2, 3, etc.)
+                        {
+                            ItemType = itemType,
+                            ItemData = {
+                                UUID = uuid
+                            }
+                        }
+                    )
+                end)
+                
+                if success then
+                    print("✅ Successfully input " .. itemName .. " into gear slot " .. inputSlot)
+                else
+                    print("❌ Failed to input " .. itemName .. ": " .. tostring(err))
+                    allItemsInput = false
+                end
+                
+                task.wait(0.5) -- Small delay between inputs
+            else
+                print("❌ Could not find " .. itemName .. " in inventory")
+                allItemsInput = false
+            end
+        end
+        
+        return allItemsInput
+    end
+
     -- Simple auto claim loop - just claim continuously
     local function autoClaimLoop()
         print("🔨 Starting simple auto claim loop for:", SelectedRecipe)
@@ -781,7 +931,7 @@ local function initializeCrafterTab()
     GearCrafterGroupBox:AddToggle("AutoGearClaim", {
         Text = "⚙️ Auto Craft Gear",
         Default = false,
-        Tooltip = "Set gear recipe automatically",
+        Tooltip = "Set gear recipe and automatically input available items from inventory",
         Callback = function(Value)
             print("[cb] Auto Craft Gear toggled:", Value)
             
@@ -798,8 +948,15 @@ local function initializeCrafterTab()
 
                 print("⚙️ Auto-crafting gear recipe:", SelectedGearRecipe)
                 
-                -- Claim the gear recipe
+                -- Step 1: Set the gear recipe
                 claimGearRecipe(SelectedGearRecipe)
+                task.wait(1) -- Wait for recipe to be set
+                
+                -- Step 2: Auto-input available gear items
+                local recipeData = GearRecipeData[SelectedGearRecipe]
+                if recipeData then
+                    autoInputGearItems(recipeData)
+                end
                 
                 -- Turn toggle back off after processing
                 task.wait(0.1)
@@ -820,6 +977,86 @@ local function initializeCrafterTab()
         end
         
         claimGearRecipe(SelectedGearRecipe)
+    end)
+
+    -- Manual input gear items button
+    GearCrafterGroupBox:AddButton("📦 Input Gear Items Now", function()
+        if not SelectedGearRecipe then
+            print("⚠️ Please select a gear recipe first!")
+            return
+        end
+        
+        local recipeData = GearRecipeData[SelectedGearRecipe]
+        if recipeData then
+            print("📦 Inputting gear items for:", SelectedGearRecipe)
+            local success = autoInputGearItems(recipeData)
+            if success then
+                print("✅ All gear items input successfully!")
+            else
+                print("⚠️ Some gear items could not be input - check inventory")
+            end
+        else
+            print("⚠️ Gear recipe data not found for:", SelectedGearRecipe)
+        end
+    end)
+
+    -- Divider for inventory check
+    GearCrafterGroupBox:AddDivider()
+
+    -- Manual gear inventory check button
+    GearCrafterGroupBox:AddButton("📦 Check Gear Inventory", function()
+        if not SelectedGearRecipe then
+            print("⚠️ Please select a gear recipe first!")
+            return
+        end
+        
+        local recipeData = GearRecipeData[SelectedGearRecipe]
+        if recipeData then
+            print("==== GEAR INVENTORY CHECK FOR " .. SelectedGearRecipe .. " ====")
+            for i, input in ipairs(recipeData.Inputs) do
+                local itemName = input.ItemName
+                local itemType = input.ItemType
+                
+                -- Check if item exists in inventory
+                local uuid, tool = findItemUUID(itemName)
+                local status = (uuid and tool) and "✓ HAVE" or "✗ MISSING"
+                print("Slot " .. i .. " - " .. status .. " - " .. itemType .. ": " .. itemName)
+                
+                if uuid then
+                    print("  └── UUID: " .. uuid)
+                end
+            end
+            
+            -- Check currency if recipe has cost
+            if recipeData.Cost then
+                print("==== CURRENCY CHECK ====")
+                local currencyType = recipeData.Cost.CurrencyType
+                local requiredAmount = recipeData.Cost.Amount
+                
+                local success, currentAmount = pcall(function()
+                    local DataService = require(ReplicatedStorage.Modules.DataService)
+                    local data = DataService:GetData()
+                    
+                    if currencyType == "Sheckles" then
+                        return data.Currency or 0
+                    elseif currencyType == "Honey" then
+                        return data.SpecialCurrency.Honey or 0
+                    elseif currencyType == "SummerCoins" then
+                        return data.SpecialCurrency.SummerCoins or 0
+                    end
+                    return 0
+                end)
+                
+                if not success then currentAmount = 0 end
+                
+                local currencyStatus = (currentAmount >= requiredAmount) and "✓ HAVE ENOUGH" or "✗ NOT ENOUGH"
+                print(currencyStatus .. " - " .. currencyType .. ": " .. currentAmount .. "/" .. requiredAmount)
+            end
+            
+            print("================================")
+        else
+            print("⚠️ Gear recipe data not found for:", SelectedGearRecipe)
+        end
     end)
 
     -- ================================================================
