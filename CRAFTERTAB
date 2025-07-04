@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafterv1", "hammer")
+    local CrafterTab = Window:AddTab("Crafterv2", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -553,61 +553,6 @@ local function initializeCrafterTab()
         return nil, nil
     end
 
-    -- Function to automatically input items into recipe (enhanced with auto-craft)
-    local function autoInputItems(recipeData)
-        return autoInputItemsAndCraft(recipeData, SeedEventCraftingWorkBench, "SeedEventWorkbench")
-    end
-    local function claimRecipe(recipeName)
-        local success, err = pcall(function()
-            print("🔨 Setting recipe:", recipeName)
-            CraftingGlobalObjectService:FireServer(
-                "SetRecipe",
-                SeedEventCraftingWorkBench,
-                "SeedEventWorkbench",
-                recipeName
-            )
-        end)
-
-        if success then
-            print("✅ Successfully set recipe:", recipeName)
-            -- Library:Notify("🔨 Set recipe: " .. recipeName, 3) -- Disabled notification
-            return true
-        else
-            print("❌ Failed to set recipe:", err)
-            -- Library:Notify("❌ Failed to set recipe: " .. recipeName, 3) -- Disabled notification
-            return false
-        end
-    end
-
-    -- Function to claim gear recipe
-    local function claimGearRecipe(recipeName)
-        local success, err = pcall(function()
-            print("⚙️ Setting gear recipe:", recipeName)
-            local EventCraftingWorkBench = workspace.CraftingTables.EventCraftingWorkBench
-            local SelectCraftingRecipeBindableEvent = ReplicatedStorage.GameEvents.SelectCraftingRecipeBindableEvent
-            
-            local recipeData = GearRecipeData[recipeName]
-            if not recipeData then
-                error("Recipe data not found for: " .. recipeName)
-            end
-            
-            -- Fire the bindable event with the recipe data
-            SelectCraftingRecipeBindableEvent:Fire(
-                EventCraftingWorkBench,
-                recipeName,
-                recipeData
-            )
-        end)
-
-        if success then
-            print("✅ Successfully set gear recipe:", recipeName)
-            return true
-        else
-            print("❌ Failed to set gear recipe:", err)
-            return false
-        end
-    end
-
     -- Function to automatically input items into recipe
     local function autoInputItems(recipeData)
         if not recipeData or not recipeData.Inputs then return false end
@@ -863,6 +808,16 @@ local function initializeCrafterTab()
         return allItemsInput
     end
 
+    -- Enhanced autoInputItems that uses the full auto-craft functionality
+    local function autoInputItemsEnhanced(recipeData)
+        return autoInputItemsAndCraft(recipeData, SeedEventCraftingWorkBench, "SeedEventWorkbench")
+    end
+
+    -- Enhanced autoInputGearItems that uses the full auto-craft functionality  
+    local function autoInputGearItemsEnhanced(recipeData)
+        return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
+    end
+
     -- ================================================================
     -- UI ELEMENTS
     -- ================================================================
@@ -905,10 +860,10 @@ local function initializeCrafterTab()
                 claimRecipe(SelectedRecipe)
                 task.wait(1) -- Wait for recipe to be set
                 
-                -- Step 2: Auto-input available items
+                -- Step 2: Auto-input available items and start crafting
                 local recipeData = RecipeData[SelectedRecipe]
                 if recipeData then
-                    autoInputItems(recipeData)
+                    autoInputItemsEnhanced(recipeData)
                 end
                 
                 -- Turn toggle back off after processing
@@ -1014,10 +969,10 @@ local function initializeCrafterTab()
                 claimGearRecipe(SelectedGearRecipe)
                 task.wait(1) -- Wait for recipe to be set
                 
-                -- Step 2: Auto-input available gear items
+                -- Step 2: Auto-input available gear items and start crafting
                 local recipeData = GearRecipeData[SelectedGearRecipe]
                 if recipeData then
-                    autoInputGearItems(recipeData)
+                    autoInputGearItemsEnhanced(recipeData)
                 end
                 
                 -- Turn toggle back off after processing
