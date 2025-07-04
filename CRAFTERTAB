@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter1.1", "hammer")
+    local CrafterTab = Window:AddTab("Crafter1.2", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -209,15 +209,22 @@ local function initializeCrafterTab()
             if Value then
                 if not SelectedRecipe then
                     print("⚠️ Please select a recipe first!")
-                    Toggles.AutoClaim:SetValue(false)
+                    -- Use task.wait to avoid immediate callback loop
+                    task.wait(0.1)
+                    if Toggles and Toggles.AutoClaim then
+                        Toggles.AutoClaim:SetValue(false)
+                    end
                     return
                 end
 
                 print("🔨 Claiming recipe:", SelectedRecipe)
                 claimRecipe(SelectedRecipe)
                 
-                -- Turn toggle back off after claiming once
-                Toggles.AutoClaim:SetValue(false)
+                -- Turn toggle back off after claiming once (with delay to avoid errors)
+                task.wait(0.1)
+                if Toggles and Toggles.AutoClaim then
+                    Toggles.AutoClaim:SetValue(false)
+                end
             end
         end
     })
