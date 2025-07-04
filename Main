@@ -1479,109 +1479,27 @@ local SummerFruitsToSubmit = {
 -- Function to check if Summer Harvest Event is currently active
 local function IsSummerHarvestEventActive()
     local success, result = pcall(function()
-        local uiFound = false
-        local eventsFound = false
-        local workspaceFound = false
-        local npcFound = false
-        local remoteFound = false
-        
-        -- Method 1: Check for Summer Harvest UI presence and visibility
-        local summerUI = LocalPlayer.PlayerGui:FindFirstChild("SummerHarvestEvent_UI")
-        if summerUI then
-            -- Check if the UI is actually visible and enabled
-            if summerUI.Enabled and summerUI.Visible then
-                -- Check if the main frame is visible too
-                local mainFrame = summerUI:FindFirstChild("MainFrame") or summerUI:FindFirstChild("Frame") or summerUI:FindFirstChild("Background")
-                if mainFrame and mainFrame.Visible then
-                    print("✅ Summer Harvest UI found, enabled, and visible")
-                    uiFound = true
-                else
-                    print("⚠️ Summer Harvest UI found but main frame is not visible")
-                end
-            else
-                print("⚠️ Summer Harvest UI found but not enabled/visible")
-            end
-        else
-            print("❌ Summer Harvest UI not found")
+        -- Primary check: workspace SummerEvent attribute (this is the most reliable indicator)
+        if workspace:GetAttribute("SummerEvent") then
+            print("✅ Summer Event is active (SummerEvent attribute)")
+            return true
         end
-        
-        -- Method 2: Check for active summer harvest event in game data with specific name matching
-        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
-        local data = DataService:GetData()
-        
-        if data and data.ActiveEvents then
-            for eventName, eventData in pairs(data.ActiveEvents) do
-                local lowerEventName = string.lower(eventName)
-                -- More specific matching for summer harvest event
-                if (string.find(lowerEventName, "summer") and string.find(lowerEventName, "harvest")) or
-                   lowerEventName == "summerharvest" or
-                   lowerEventName == "summer_harvest" or
-                   lowerEventName == "summerharvestevent" then
-                    print("✅ Active Summer Harvest event found in data:", eventName)
-                    -- Check if event data indicates it's actually active
-                    if eventData and eventData.Active ~= false then
-                        eventsFound = true
-                        break
-                    else
-                        print("⚠️ Summer Harvest event found but marked as inactive")
-                    end
-                end
-            end
-            if not eventsFound then
-                print("❌ No specific Summer Harvest event found in ActiveEvents")
-            end
-        else
-            print("❌ No ActiveEvents data found")
+
+        -- Secondary check: workspace SummerHarvest attribute (from SummerHarvestHandler)
+        if workspace:GetAttribute("SummerHarvest") then
+            print("✅ Summer Harvest is active (SummerHarvest attribute)")
+            return true
         end
-        
-        -- Method 3: Check workspace for summer harvest event objects/NPCs (informational only)
-        local summerEventObjects = workspace:FindFirstChild("SummerHarvestEvent") or 
-                                   workspace:FindFirstChild("SummerEvent") or
-                                   workspace:FindFirstChild("SummerHarvest")
-        if summerEventObjects then
-            print("✅ Summer Harvest event objects found in workspace")
-            workspaceFound = true
-        else
-            print("❌ No Summer Harvest event objects found in workspace")
+
+        -- Check current weather attribute as fallback
+        if workspace:GetAttribute("CurrentWeatherEvent") == "Summer" then
+            print("✅ Summer Event is active (CurrentWeatherEvent is Summer)")
+            return true
         end
-        
-        -- Method 4: Check for summer harvest NPC or interaction points (informational only)
-        local npcs = workspace:FindFirstChild("NPCS")
-        if npcs then
-            local summerNPC = npcs:FindFirstChild("Summer Harvest NPC") or 
-                              npcs:FindFirstChild("SummerHarvestNPC") or
-                              npcs:FindFirstChild("Summer_Harvest_NPC")
-            if summerNPC then
-                print("✅ Summer Harvest NPC found")
-                npcFound = true
-            else
-                print("❌ No Summer Harvest NPC found")
-            end
-        end
-        
-        -- Method 5: Check if summer harvest remote exists (informational only)
-        local summerRemote = Services.ReplicatedStorage.GameEvents:FindFirstChild("SummerHarvestRemoteEvent")
-        if summerRemote then
-            print("✅ Summer Harvest Remote Event exists")
-            remoteFound = true
-        else
-            print("❌ Summer Harvest Remote Event not found")
-        end
-        
-        -- REFINED LOGIC: Only return true if UI is visible OR ActiveEvents confirms the event
-        -- Workspace objects, NPCs, and remotes alone are NOT sufficient evidence
-        local isActive = uiFound or eventsFound
-        
-        print("--- DETECTION SUMMARY ---")
-        print("UI Active:", uiFound and "✅" or "❌")
-        print("ActiveEvents Found:", eventsFound and "✅" or "❌") 
-        print("Workspace Objects:", workspaceFound and "✅" or "❌", "(informational)")
-        print("Summer NPCs:", npcFound and "✅" or "❌", "(informational)")
-        print("Remote Exists:", remoteFound and "✅" or "❌", "(informational)")
-        print("FINAL DECISION:", isActive and "🟢 EVENT IS ACTIVE" or "🔴 EVENT IS INACTIVE")
-        print("REASONING: Only UI visibility or confirmed ActiveEvents data can indicate an active event")
-        
-        return isActive
+
+        -- If none of the above are true, event is not active
+        print("❌ Summer Harvest Event is not active - no workspace attributes found")
+        return false
     end)
     
     if success then
@@ -1876,6 +1794,27 @@ AutoGiveSummerPlantGroupBox:AddButton("Clear Selection", function()
     end
     
     Library:Notify("🗑️ Cleared summer fruits selection", 2)
+end)
+
+-- Test Summer Event Detection Button (for debugging)
+AutoGiveSummerPlantGroupBox:AddButton("🔍 Test Event Detection", function()
+    local isActive = IsSummerHarvestEventActive()
+    
+    -- Show detailed information about current status
+    local summerEventAttr = workspace:GetAttribute("SummerEvent")
+    local summerHarvestAttr = workspace:GetAttribute("SummerHarvest") 
+    local currentWeatherAttr = workspace:GetAttribute("CurrentWeatherEvent")
+    
+    Library:Notify("🔍 Summer Event Status Check:", 3)
+    Library:Notify("SummerEvent: " .. tostring(summerEventAttr), 2)
+    Library:Notify("SummerHarvest: " .. tostring(summerHarvestAttr), 2)
+    Library:Notify("CurrentWeather: " .. tostring(currentWeatherAttr), 2)
+    
+    if isActive then
+        Library:Notify("✅ Summer Harvest Event is ACTIVE!", 3)
+    else
+        Library:Notify("❌ Summer Harvest Event is NOT ACTIVE", 3)
+    end
 end)
 
 -- ================================================================
@@ -8821,12 +8760,10 @@ end
 -- Auto-load Crafter Tab from GitHub
 local function loadCrafterTab()
     local success, result = pcall(function()
-        print("🔨 Loading Crafter Tab from GitHub...")
         -- Use the correct GitHub raw URL
         local githubUrl = "https://raw.githubusercontent.com/bihyudyfosydf/Resn/refs/heads/main/CRAFTERTAB"
         
         local response = game:HttpGet(githubUrl)
-        print("📥 Response length:", #response)
         
         if response and #response > 0 then
             return loadstring(response)()
