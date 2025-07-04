@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.9", "hammer")
+    local CrafterTab = Window:AddTab("Crafter", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -995,65 +995,6 @@ local function initializeCrafterTab()
             else
                 print("⚠️ Some gear items could not be input - check inventory")
             end
-        else
-            print("⚠️ Gear recipe data not found for:", SelectedGearRecipe)
-        end
-    end)
-
-    -- Divider for inventory check
-    GearCrafterGroupBox:AddDivider()
-
-    -- Manual gear inventory check button
-    GearCrafterGroupBox:AddButton("📦 Check Gear Inventory", function()
-        if not SelectedGearRecipe then
-            print("⚠️ Please select a gear recipe first!")
-            return
-        end
-        
-        local recipeData = GearRecipeData[SelectedGearRecipe]
-        if recipeData then
-            print("==== GEAR INVENTORY CHECK FOR " .. SelectedGearRecipe .. " ====")
-            for i, input in ipairs(recipeData.Inputs) do
-                local itemName = input.ItemName
-                local itemType = input.ItemType
-                
-                -- Check if item exists in inventory
-                local uuid, tool = findItemUUID(itemName)
-                local status = (uuid and tool) and "✓ HAVE" or "✗ MISSING"
-                print("Slot " .. i .. " - " .. status .. " - " .. itemType .. ": " .. itemName)
-                
-                if uuid then
-                    print("  └── UUID: " .. uuid)
-                end
-            end
-            
-            -- Check currency if recipe has cost
-            if recipeData.Cost then
-                print("==== CURRENCY CHECK ====")
-                local currencyType = recipeData.Cost.CurrencyType
-                local requiredAmount = recipeData.Cost.Amount
-                
-                local success, currentAmount = pcall(function()
-                    local DataService = require(ReplicatedStorage.Modules.DataService)
-                    local data = DataService:GetData()
-                    
-                    if currencyType == "Sheckles" then
-                        return data.Currency or 0
-                    elseif currencyType == "Honey" then
-                        return data.SpecialCurrency.Honey or 0
-                    elseif currencyType == "SummerCoins" then
-                        return data.SpecialCurrency.SummerCoins or 0
-                    end
-                    return 0
-                end)
-                
-                if not success then currentAmount = 0 end
-                
-                local currencyStatus = (currentAmount >= requiredAmount) and "✓ HAVE ENOUGH" or "✗ NOT ENOUGH"
-                print(currencyStatus .. " - " .. currencyType .. ": " .. currentAmount .. "/" .. requiredAmount)
-            end
-            
-            print("================================")
         else
             print("⚠️ Gear recipe data not found for:", SelectedGearRecipe)
         end
