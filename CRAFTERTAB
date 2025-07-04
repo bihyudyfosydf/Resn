@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafterv3", "hammer")
+    local CrafterTab = Window:AddTab("Crafter", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
