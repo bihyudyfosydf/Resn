@@ -8804,3 +8804,49 @@ AutoShovelGroupBox:AddButton("🌳 Shovel Now", function()
     end
     shovelSelectedTree()
 end)
+
+-- ================================================================
+-- CRAFTER TAB AUTO-INTEGRATION
+-- ================================================================
+
+-- Set global flag to indicate main script is loaded
+if getgenv then
+    getgenv().MainScriptLoaded = true
+end
+
+-- Auto-load Crafter Tab from GitHub
+local function loadCrafterTab()
+    local success, result = pcall(function()
+        print("🔨 Loading Crafter Tab from GitHub...")
+        local githubUrl = "https://raw.githubusercontent.com/bilyudyfosydf/Resn/main/CRAFTERTAB"
+        local response = game:HttpGet(githubUrl)
+        if response and #response > 0 then
+            return loadstring(response)()
+        else
+            error("Empty response from GitHub")
+        end
+    end)
+
+    if success and result then
+        print("✅ Crafter Tab loaded successfully!")
+        Library:Notify("🔨 Crafter Tab integrated! Check the new tab.", 3)
+    else
+        print("⚠️ Could not load Crafter Tab:", tostring(result))
+        Library:Notify("⚠️ Crafter Tab failed to load - check console for details", 3)
+        
+        -- Fallback notification
+        Library:Notify("💡 Tip: Make sure CRAFTERTAB file is uploaded to your GitHub repository", 5)
+    end
+end
+
+-- Load Crafter Tab with a small delay to ensure everything is ready
+task.spawn(function()
+    task.wait(2) -- Wait 2 seconds for everything to initialize
+    loadCrafterTab()
+end)
+
+-- ================================================================
+-- SCRIPT COMPLETION MESSAGE
+-- ================================================================
+print("🌱 REFACTOR Main Script - Fully Loaded with Auto Crafter Integration!")
+Library:Notify("🚀 All systems loaded! Crafter Tab will appear in 2 seconds.", 4)
