@@ -14,7 +14,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- CRAFTER TAB INITIALIZATION
     -- ================================================================
-    local CrafterTab = Window:AddTab("Crafter-1.3", "hammer")
+    local CrafterTab = Window:AddTab("Crafter-1.4", "hammer")
     
     -- ================================================================
     -- SEED CRAFTER GROUPBOX
@@ -84,10 +84,28 @@ local function initializeCrafterTab()
             local hasItem = false
             local itemCount = 0
             
-            -- Check backpack for items
+            -- Check backpack for items using improved matching
             if LocalPlayer.Backpack then
                 for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-                    if tool.Name:find(itemName) then
+                    local toolName = tool.Name:lower()
+                    local searchName = itemName:lower()
+                    local isMatch = false
+                    
+                    -- Try multiple matching strategies
+                    if toolName == searchName or 
+                       toolName:find(searchName, 1, true) or 
+                       searchName:find(toolName, 1, true) then
+                        isMatch = true
+                    else
+                        -- Clean names and try again
+                        local cleanToolName = toolName:gsub("%s*seed%s*", ""):gsub("%s*%[x%d+%]%s*", "")
+                        local cleanSearchName = searchName:gsub("%s*seed%s*", "")
+                        if cleanToolName == cleanSearchName or cleanToolName:find(cleanSearchName, 1, true) then
+                            isMatch = true
+                        end
+                    end
+                    
+                    if isMatch then
                         hasItem = true
                         -- Try to extract quantity from name (e.g., "Carrot Seed [X5]")
                         local quantityMatch = tool.Name:match("%[X(%d+)%]")
@@ -143,31 +161,78 @@ local function initializeCrafterTab()
         print("================================")
     end
 
+    -- Helper function to extract UUID from tool
+    local function getItemUUID(tool)
+        if not tool then return nil, nil end
+        
+        -- Try to find UUID attribute or in tool data
+        local uuid = tool:GetAttribute("UUID")
+        if not uuid then
+            -- Check for UUID in tool's configuration or data
+            local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
+            if config then
+                local uuidValue = config:FindFirstChild("UUID")
+                if uuidValue then
+                    uuid = uuidValue.Value
+                end
+            end
+        end
+        
+        if uuid then
+            return uuid, tool
+        else
+            print("⚠️ Found tool " .. tool.Name .. " but no UUID")
+            return nil, nil
+        end
+    end
+
     -- Function to find item UUID in player's backpack
     local function findItemUUID(itemName)
         if not LocalPlayer.Backpack then return nil end
         
+        print("🔍 Looking for item: " .. itemName)
+        print("📦 Current backpack contents:")
+        
+        -- First, list all items in backpack for debugging
         for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-            if tool.Name:find(itemName) then
-                -- Try to find UUID attribute or in tool data
-                local uuid = tool:GetAttribute("UUID")
-                if not uuid then
-                    -- Check for UUID in tool's configuration or data
-                    local config = tool:FindFirstChild("Configuration") or tool:FindFirstChild("Data")
-                    if config then
-                        local uuidValue = config:FindFirstChild("UUID")
-                        if uuidValue then
-                            uuid = uuidValue.Value
-                        end
-                    end
-                end
-                
-                if uuid then
-                    return uuid, tool
-                end
+            print("  - " .. tool.Name)
+        end
+        
+        -- Try different matching strategies
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            local toolName = tool.Name:lower()
+            local searchName = itemName:lower()
+            
+            -- Strategy 1: Exact match
+            if toolName == searchName then
+                print("✅ Found exact match: " .. tool.Name)
+                return getItemUUID(tool)
+            end
+            
+            -- Strategy 2: Contains search term
+            if toolName:find(searchName, 1, true) then
+                print("✅ Found partial match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                return getItemUUID(tool)
+            end
+            
+            -- Strategy 3: Search term contains tool name (for cases like "Carrot" vs "Carrot Seed")
+            if searchName:find(toolName, 1, true) then
+                print("✅ Found reverse match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                return getItemUUID(tool)
+            end
+            
+            -- Strategy 4: Remove common suffixes/prefixes and try again
+            local cleanToolName = toolName:gsub("%s*seed%s*", ""):gsub("%s*%[x%d+%]%s*", "")
+            local cleanSearchName = searchName:gsub("%s*seed%s*", "")
+            
+            if cleanToolName == cleanSearchName or cleanToolName:find(cleanSearchName, 1, true) then
+                print("✅ Found cleaned match: " .. tool.Name .. " (searching for: " .. itemName .. ")")
+                return getItemUUID(tool)
             end
         end
-        return nil
+        
+        print("❌ Could not find " .. itemName .. " in backpack")
+        return nil, nil
     end
 
     -- Function to automatically input items into recipe
