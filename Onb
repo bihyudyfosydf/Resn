@@ -274,12 +274,23 @@ local function initializeOnb()
     
     -- Carrot Quest Toggle
     local isCarrotQuestEnabled = false
+    local carrotQuestToggle = nil
     PlantQuestGroupBox:AddToggle("CarrotQuest", {
         Text = "Carrot Quest Auto Plant",
         Default = false,
         Tooltip = "Automatically plant carrot seeds when you have the 'Plant 100 Carrot' quest",
         Callback = function(Value)
             isCarrotQuestEnabled = Value
+            -- Store the toggle instance for later use
+            if carrotQuestToggle == nil and type(PlantQuestGroupBox.Toggles) == "table" then
+                for _, toggle in pairs(PlantQuestGroupBox.Toggles) do
+                    if toggle.Name == "CarrotQuest" then
+                        carrotQuestToggle = toggle
+                        break
+                    end
+                end
+            end
+            
             if Value then
                 -- Reset notification status when toggled on
                 notifiedMissingCarrotQuest = false
@@ -330,7 +341,18 @@ local function initializeOnb()
                                 Library:Notify("✅ Carrot quest completed! " .. target .. "/" .. target, 3)
                                 -- Turn off toggle since quest is completed
                                 isCarrotQuestEnabled = false
-                                Options.CarrotQuest:SetValue(false)
+                                -- Try different ways to update the UI toggle
+                                -- Method 1: Direct toggle refresh
+                                if carrotQuestToggle then
+                                    pcall(function() carrotQuestToggle:SetValue(false) end)
+                                end
+                                -- Method 2: Library update if available
+                                pcall(function() 
+                                    if Library and Library.UpdateToggle then
+                                        Library:UpdateToggle("CarrotQuest", false)
+                                    end
+                                end)
+                                -- Even if UI update fails, our local variable ensures the loop stops
                                 break
                             end
                         else
