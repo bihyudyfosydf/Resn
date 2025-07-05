@@ -1,1 +1,177 @@
+-- ================================================================
+-- EVENT TAB - Event Features
+-- Repository: Resn
+-- ================================================================
 
+-- Check if this is being loaded as a module or executed directly
+local function initializeEventTab()
+    -- Ensure we have access to the main script's variables
+    if not Tabs or not Window or not Library then
+        warn("❌ Event Tab: Main script not loaded! Please run the main script first.")
+        return false
+    end
+
+    -- ================================================================
+    -- SERVICES
+    -- ================================================================
+    local Services = {
+        Workspace = game:GetService("Workspace"),
+        ReplicatedStorage = game:GetService("ReplicatedStorage"),
+        Players = game:GetService("Players"),
+        UserInputService = game:GetService("UserInputService"),
+        TweenService = game:GetService("TweenService"),
+        CollectionService = game:GetService("CollectionService"),
+        HttpService = game:GetService("HttpService"),
+        RunService = game:GetService("RunService"),
+        GuiService = game:GetService("GuiService"),
+        TeleportService = game:GetService("TeleportService"),
+        Debris = game:GetService("Debris"),
+        SoundService = game:GetService("SoundService")
+    }
+
+    -- ================================================================
+    -- DINO QUEST GROUPBOX (Event Tab)
+    -- ================================================================
+    local DinoQuestGroupBox = Tabs.Event:AddLeftGroupbox("DINO QUEST")
+
+    -- Dino Quest Button
+    DinoQuestGroupBox:AddButton("Check Dino Quest Status", function()
+        print("🦕 The dino quest player has now read codespace")
+        
+        -- Get the player's dino quest data
+        local success, result = pcall(function()
+            local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+            local QuestsController = require(Services.ReplicatedStorage.Modules.QuestsController)
+            
+            local data = DataService:GetData()
+            if not data then
+                print("❌ No player data found")
+                return
+            end
+            
+            -- Check DinoQuests milestone progress
+            if data.DinoQuests then
+                print("📊 DINO QUEST PROGRESS:")
+                print("   Milestone Progress:", data.DinoQuests.Milestone.Progress)
+                print("   Completed Milestones:", #data.DinoQuests.Milestone.Completed)
+                print("   Claimed Milestones:", #data.DinoQuests.Milestone.Claimed)
+            end
+            
+            -- Use the EXACT same logic as the DinoQuests UI
+            local questCount = 0
+            print("🎯 YOUR ACTIVE DINO QUESTS:")
+            
+            -- Check DinoQuests.Containers for active container IDs (same as DinoQuestsController)
+            if data.DinoQuests and data.DinoQuests.Containers then
+                for containerId, containerIdValue in pairs(data.DinoQuests.Containers) do
+                    -- Get the actual container data using QuestsController (same as UI)
+                    local containerData = QuestsController:GetContainerFromId(containerIdValue)
+                    
+                    if containerData and containerData.Quests then
+                        print("   📦 Container ID:", containerIdValue)
+                        
+                        for i, quest in pairs(containerData.Quests) do
+                            questCount = questCount + 1
+                            local questObj = QuestsController:GetQuest(quest.Type)
+                            if questObj then
+                                local display = questObj:Display(quest.Progress, quest.Target, quest.Arguments)
+                                local status = quest.Completed and "✅ COMPLETED" or "⏳ IN PROGRESS"
+                                print("   Quest " .. questCount .. ":", display.Title)
+                                print("     Progress:", display.Bar)
+                                print("     Status:", status)
+                                print("     Type:", quest.Type)
+                                if quest.Arguments then
+                                    print("     Arguments:", table.concat(quest.Arguments, ", "))
+                                end
+                            else
+                                print("   Quest " .. questCount .. ": Unknown quest type -", quest.Type)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if questCount == 0 then
+                print("❌ No active dino quests found")
+                print("🔍 Debug - Available QuestContainers:")
+                if data.QuestContainers then
+                    for containerId, container in pairs(data.QuestContainers) do
+                        print("   Container ID:", containerId)
+                        if container.Quests then
+                            for i, quest in pairs(container.Quests) do
+                                print("     Quest " .. i .. " Type:", quest.Type)
+                                if quest.Arguments then
+                                    print("     Arguments:", table.concat(quest.Arguments, ", "))
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        
+        if not success then
+            print("❌ Error checking dino quest data:", result)
+        end
+        
+        Library:Notify("🦕 Your active dino quests displayed in console!", 3)
+    end)
+
+    -- ================================================================
+    -- SUCCESS MESSAGE
+    -- ================================================================
+    print("🦕 Event Tab initialized with Dino Quest functionality")
+
+    return true
+end
+
+-- ================================================================
+-- AUTO-EXECUTION AND MODULE COMPATIBILITY
+-- ================================================================
+
+-- Check if this is being executed directly or loaded as a module
+if getgenv and getgenv().MainScriptLoaded then
+    -- Main script is already loaded, initialize immediately
+    local success = initializeEventTab()
+    if success then
+        print("✅ Event Tab successfully integrated!")
+    end
+else
+    -- Wait for main script to load, then initialize
+    print("⏳ Waiting for main script to load...")
+    
+    local function waitForMainScript()
+        local maxWait = 30 -- seconds
+        local waited = 0
+        
+        while waited < maxWait do
+            if getgenv and getgenv().MainScriptLoaded and Tabs and Window and Library then
+                local success = initializeEventTab()
+                if success then
+                    print("✅ Event Tab successfully integrated after waiting!")
+                    return true
+                end
+            end
+            
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
+        
+        warn("⚠️ Event Tab: Timed out waiting for main script")
+        return false
+    end
+    
+    -- Run the wait function
+    task.spawn(waitForMainScript)
+end
+
+-- ================================================================
+-- LOADSTRING COMPATIBILITY (for raw GitHub execution)
+-- ================================================================
+
+return {
+    initialize = initializeEventTab,
+    name = "Event Tab",
+    version = "1.0.0",
+    repository = "Resn"
+} 
