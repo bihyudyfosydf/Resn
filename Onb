@@ -273,18 +273,20 @@ local function initializeOnb()
     end
     
     -- Carrot Quest Toggle
+    local isCarrotQuestEnabled = false
     PlantQuestGroupBox:AddToggle("CarrotQuest", {
         Text = "Carrot Quest Auto Plant",
         Default = false,
         Tooltip = "Automatically plant carrot seeds when you have the 'Plant 100 Carrot' quest",
         Callback = function(Value)
+            isCarrotQuestEnabled = Value
             if Value then
                 -- Reset notification status when toggled on
                 notifiedMissingCarrotQuest = false
                 
                 -- Create a loop to check for quest and plant carrots
                 task.spawn(function()
-                    while Toggles.CarrotQuest.Value do
+                    while isCarrotQuestEnabled do
                         -- Check if player has the carrot quest
                         local hasQuest, progress, target = hasPlantQuest("Carrot", 100)
                         
@@ -327,7 +329,8 @@ local function initializeOnb()
                                 print("✅ Carrot quest completed!")
                                 Library:Notify("✅ Carrot quest completed! " .. target .. "/" .. target, 3)
                                 -- Turn off toggle since quest is completed
-                                Toggles.CarrotQuest:SetValue(false)
+                                isCarrotQuestEnabled = false
+                                Options.CarrotQuest:SetValue(false)
                                 break
                             end
                         else
