@@ -10,6 +10,25 @@ local function initializeOnb()
         return false
     end
 
+    -- Define Services exactly as in the main file
+    local Services = {
+        Workspace = game:GetService("Workspace"),
+        ReplicatedStorage = game:GetService("ReplicatedStorage"),
+        Players = game:GetService("Players"),
+        UserInputService = game:GetService("UserInputService"),
+        TweenService = game:GetService("TweenService"),
+        CollectionService = game:GetService("CollectionService"),
+        HttpService = game:GetService("HttpService"),
+        RunService = game:GetService("RunService"),
+        GuiService = game:GetService("GuiService"),
+        TeleportService = game:GetService("TeleportService"),
+        Debris = game:GetService("Debris"),
+        SoundService = game:GetService("SoundService")
+    }
+    
+    -- Get LocalPlayer
+    local LocalPlayer = Services.Players.LocalPlayer
+
     -- Create the Event tab if it doesn't exist
     if not Tabs.Event then
         Tabs.Event = Window:AddTab("Event", "calendar")
