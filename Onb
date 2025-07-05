@@ -29,6 +29,9 @@ local function initializeOnb()
     -- Get LocalPlayer
     local LocalPlayer = Services.Players.LocalPlayer
 
+    -- Remote Events
+    local Plant_RE = Services.ReplicatedStorage.GameEvents.Plant_RE
+
     -- Create the Event tab if it doesn't exist
     if not Tabs.Event then
         Tabs.Event = Window:AddTab("Event", "calendar")
@@ -122,6 +125,230 @@ local function initializeOnb()
 
         Library:Notify("🦕 Your active dino quests displayed in console!", 3)
     end)
+    
+    -- ================================================================
+    -- PLANT QUEST GROUPBOX
+    -- ================================================================
+    local PlantQuestGroupBox = Tabs.Event:AddRightGroupbox("PLANT QUEST")
+    
+    -- Variable to track if we've already notified the user about missing quests
+    local notifiedMissingCarrotQuest = false
+    
+    -- Function to find and equip seed (similar to the one in auto plant)
+    local function findAndEquipSeed(seedName)
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if not backpack then
+            print("❌ No backpack found")
+            return false
+        end
+
+        -- Check if the seed is already equipped
+        if LocalPlayer.Character then
+            for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+                if equippedItem:IsA("Tool") then
+                    local itemName = equippedItem.Name
+                    local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+
+                    if string.find(cleanName:lower(), seedName:lower()) and string.find(cleanName:lower(), "seed") then
+                        print("✅ Seed already equipped:", itemName)
+                        return true
+                    end
+                end
+            end
+        end
+
+        -- Look for seed in backpack
+        local seedTool = nil
+        local possibleNames = {
+            seedName .. "Seed",           -- CarrotSeed
+            seedName .. " Seed",          -- Carrot Seed
+            string.gsub(seedName, " ", "") .. "Seed", -- WildCarrotSeed
+        }
+
+        -- Try exact matches
+        for _, possibleName in ipairs(possibleNames) do
+            seedTool = backpack:FindFirstChild(possibleName)
+            if seedTool then
+                print("✅ Found exact match in backpack:", possibleName)
+                break
+            end
+        end
+
+        -- If no exact match, try partial matching with "Seed" in name
+        if not seedTool then
+            for _, item in pairs(backpack:GetChildren()) do
+                if item:IsA("Tool") then
+                    local itemName = item.Name
+                    local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+
+                    -- ONLY look for items with "Seed" in the name
+                    if string.find(cleanName:lower(), "seed") then
+                        -- Check if this seed item matches our desired plant
+                        if string.find(cleanName:lower(), seedName:lower()) then
+                            seedTool = item
+                            print("✅ Found seed match in backpack:", itemName, "for plant:", seedName)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Equip the found seed tool
+        if seedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            print("🔧 Equipping seed tool from backpack:", seedTool.Name)
+            LocalPlayer.Character.Humanoid:EquipTool(seedTool)
+            task.wait(0.5)
+            return true
+        else
+            print("❌ No matching seed found in backpack for:", seedName)
+            return false
+        end
+    end
+    
+    -- Function to get plant position
+    local function getRandomPlantPosition()
+        -- Look for Can_Plant parts in the farm
+        local canPlantParts = {}
+        for _, part in pairs(Services.Workspace:GetDescendants()) do
+            if part:IsA("BasePart") and part:FindFirstChild("Can_Plant") then
+                table.insert(canPlantParts, part)
+            end
+        end
+        
+        if #canPlantParts == 0 then
+            return nil
+        end
+        
+        -- Select a random Can_Plant part
+        local randomPart = canPlantParts[math.random(1, #canPlantParts)]
+        return randomPart.Position
+    end
+    
+    -- Function to check if player has a specific quest
+    local function hasPlantQuest(plantName, targetAmount)
+        local success, result = pcall(function()
+            local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+            local QuestsController = require(Services.ReplicatedStorage.Modules.QuestsController)
+            
+            local data = DataService:GetData()
+            if not data then
+                print("❌ No player data found")
+                return false
+            end
+            
+            if data.QuestContainers then
+                for containerId, container in pairs(data.QuestContainers) do
+                    if container.Quests then
+                        for i, quest in pairs(container.Quests) do
+                            local questObj = QuestsController:GetQuest(quest.Type)
+                            if questObj then
+                                local display = questObj:Display(quest.Progress, quest.Target, quest.Arguments)
+                                
+                                -- Check if this is a plant quest for our specific plant
+                                if quest.Type == "Plant" and quest.Arguments and quest.Arguments[1] == plantName then
+                                    -- Check if it matches our target amount (if specified)
+                                    if not targetAmount or quest.Target == targetAmount then
+                                        print("✅ Found matching plant quest:", display.Title)
+                                        print("   Progress:", display.Bar)
+                                        print("   Status:", quest.Completed and "COMPLETED" or "IN PROGRESS")
+                                        return true, quest.Progress, quest.Target
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            return false
+        end)
+        
+        if success then
+            return result
+        else
+            print("❌ Error checking plant quest:", result)
+            return false
+        end
+    end
+    
+    -- Carrot Quest Toggle
+    PlantQuestGroupBox:AddToggle("CarrotQuest", {
+        Text = "Carrot Quest Auto Plant",
+        Default = false,
+        Tooltip = "Automatically plant carrot seeds when you have the 'Plant 100 Carrot' quest",
+        Callback = function(Value)
+            if Value then
+                -- Reset notification status when toggled on
+                notifiedMissingCarrotQuest = false
+                
+                -- Create a loop to check for quest and plant carrots
+                task.spawn(function()
+                    while Toggles.CarrotQuest.Value do
+                        -- Check if player has the carrot quest
+                        local hasQuest, progress, target = hasPlantQuest("Carrot", 100)
+                        
+                        if hasQuest then
+                            -- Quest found, try to plant carrots
+                            print("🥕 Carrot quest found! Progress: " .. progress .. "/" .. target)
+                            
+                            -- If quest is not completed, plant a carrot
+                            if progress < target then
+                                if findAndEquipSeed("Carrot") then
+                                    local plantPosition = getRandomPlantPosition()
+                                    
+                                    if plantPosition then
+                                        -- Attempt to plant
+                                        local plantSuccess = pcall(function()
+                                            Plant_RE:FireServer(plantPosition, "Carrot")
+                                        end)
+                                        
+                                        if plantSuccess then
+                                            print("✅ Successfully planted a carrot for quest!")
+                                            Library:Notify("🥕 Planted carrot for quest: " .. progress+1 .. "/" .. target, 2)
+                                        else
+                                            print("❌ Failed to plant carrot")
+                                        end
+                                    else
+                                        print("❌ No planting spots found!")
+                                        Library:Notify("❌ No planting spots found in farm!", 2)
+                                        task.wait(5) -- Wait longer if no spots found
+                                    end
+                                else
+                                    print("❌ No carrot seeds found in inventory!")
+                                    Library:Notify("❌ No carrot seeds found in inventory!", 3)
+                                    task.wait(5) -- Wait longer if no seeds found
+                                end
+                                
+                                -- Small delay between planting attempts
+                                task.wait(1)
+                            else
+                                -- Quest completed
+                                print("✅ Carrot quest completed!")
+                                Library:Notify("✅ Carrot quest completed! " .. target .. "/" .. target, 3)
+                                -- Turn off toggle since quest is completed
+                                Toggles.CarrotQuest:SetValue(false)
+                                break
+                            end
+                        else
+                            -- Quest not found
+                            if not notifiedMissingCarrotQuest then
+                                print("❌ No active carrot quest found!")
+                                Library:Notify("❌ No 'Plant 100 Carrot' quest found. Toggle will activate when you get the quest.", 4)
+                                notifiedMissingCarrotQuest = true
+                            end
+                            
+                            -- Wait a bit before checking again
+                            task.wait(10)
+                        end
+                    end
+                end)
+            else
+                -- Toggle turned off
+                Library:Notify("🥕 Carrot Quest auto plant disabled", 3)
+            end
+        end
+    })
 
     return true
 end
