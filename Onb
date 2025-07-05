@@ -227,48 +227,80 @@ local function initializeOnb()
     
     -- Function to check if player has a specific quest
     local function hasPlantQuest(plantName, targetAmount)
+        -- Use the same approach as the dino quest detection
         local success, result = pcall(function()
             local DataService = require(Services.ReplicatedStorage.Modules.DataService)
             local QuestsController = require(Services.ReplicatedStorage.Modules.QuestsController)
-            
+
             local data = DataService:GetData()
             if not data then
                 print("❌ No player data found")
-                return false
+                return false, 0, 0
             end
-            
+
+            -- Check specifically in QuestContainers data structure
+            local questFound = false
+            local progress = 0
+            local target = 0
+
+            -- Look for containers with active quests
             if data.QuestContainers then
-                for containerId, container in pairs(data.QuestContainers) do
-                    if container.Quests then
-                        for i, quest in pairs(container.Quests) do
+                for containerId, containerValue in pairs(data.QuestContainers) do
+                    -- Get the actual container data using QuestsController
+                    local containerData = QuestsController:GetContainerFromId(containerValue)
+
+                    if containerData and containerData.Quests then
+                        -- This container has quests, check each one
+                        for i, quest in pairs(containerData.Quests) do
                             local questObj = QuestsController:GetQuest(quest.Type)
+                            
                             if questObj then
                                 local display = questObj:Display(quest.Progress, quest.Target, quest.Arguments)
                                 
                                 -- Check if this is a plant quest for our specific plant
-                                if quest.Type == "Plant" and quest.Arguments and quest.Arguments[1] == plantName then
-                                    -- Check if it matches our target amount (if specified)
-                                    if not targetAmount or quest.Target == targetAmount then
-                                        print("✅ Found matching plant quest:", display.Title)
-                                        print("   Progress:", display.Bar)
-                                        print("   Status:", quest.Completed and "COMPLETED" or "IN PROGRESS")
-                                        return true, quest.Progress, quest.Target
-                                    end
+                                if quest.Type == "Plant" and quest.Arguments and 
+                                   quest.Arguments[1] == plantName and
+                                   (not targetAmount or quest.Target == targetAmount) then
+                                    
+                                    print("✅ Found matching plant quest:", display.Title)
+                                    print("   Progress:", tostring(quest.Progress or 0) .. "/" .. tostring(quest.Target or 0))
+                                    print("   Status:", quest.Completed and "COMPLETED" or "IN PROGRESS")
+                                    
+                                    questFound = true
+                                    progress = quest.Progress
+                                    target = quest.Target
+                                    return true, progress, target
                                 end
                             end
                         end
                     end
                 end
             end
-            
-            return false
+
+            -- Double-check active dailies as well
+            if data.ActiveDailies then
+                for _, quest in pairs(data.ActiveDailies) do
+                    if quest.Type == "Plant" and quest.Arguments and 
+                       quest.Arguments[1] == plantName and
+                       (not targetAmount or quest.Target == targetAmount) then
+                        
+                        print("✅ Found matching plant daily quest")
+                        print("   Progress:", tostring(quest.Progress or 0) .. "/" .. tostring(quest.Target or 0))
+                        print("   Status:", quest.Completed and "COMPLETED" or "IN PROGRESS")
+                        
+                        return true, quest.Progress, quest.Target
+                    end
+                end
+            end
+
+            return false, 0, 0
         end)
-        
+
         if success then
-            return result
+            return result, 0, 0
         else
             print("❌ Error checking plant quest:", result)
-            return false
+            return false, 0, 0
         end
     end
     
@@ -318,7 +350,7 @@ local function initializeOnb()
                                         
                                         if plantSuccess then
                                             print("✅ Successfully planted a carrot for quest!")
-                                            Library:Notify("🥕 Planted carrot for quest: " .. progress+1 .. "/" .. target, 2)
+                                            Library:Notify("🥕 Planted carrot for quest: " .. tostring((progress or 0)+1) .. "/" .. tostring(target or 100), 2)
                                         else
                                             print("❌ Failed to plant carrot")
                                         end
@@ -338,7 +370,7 @@ local function initializeOnb()
                             else
                                 -- Quest completed
                                 print("✅ Carrot quest completed!")
-                                Library:Notify("✅ Carrot quest completed! " .. target .. "/" .. target, 3)
+                                Library:Notify("✅ Carrot quest completed! " .. tostring(target or 100) .. "/" .. tostring(target or 100), 3)
                                 -- Turn off toggle since quest is completed
                                 isCarrotQuestEnabled = false
                                 -- Try different ways to update the UI toggle
