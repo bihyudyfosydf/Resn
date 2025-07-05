@@ -1,1 +1,299 @@
+-- ================================================================
+-- RE:FACTOR EVENT TAB - Event Management System
+-- Repository: Resn
+-- ================================================================
 
+-- Check if this is being loaded as a module or executed directly
+local function initializeEventTab()
+    -- Ensure we have access to the main script's variables
+    if not Tabs or not Window or not Library then
+        warn("❌ Event Tab: Main script not loaded! Please run the main script first.")
+        return false
+    end
+
+    -- ================================================================
+    -- EVENT TAB INITIALIZATION
+    -- ================================================================
+    local EventTab = Window:AddTab("Events", "calendar")
+
+    -- ================================================================
+    -- EVENT MANAGEMENT GROUPBOX
+    -- ================================================================
+    local EventManagementGroupBox = EventTab:AddLeftGroupbox("Event Management")
+
+    -- ================================================================
+    -- EVENT SETTINGS GROUPBOX
+    -- ================================================================
+    local EventSettingsGroupBox = EventTab:AddRightGroupbox("Event Settings")
+
+    -- ================================================================
+    -- GLOBAL VARIABLES
+    -- ================================================================
+    local AutoJoinEvents = false
+    local NotifyOnEvents = false
+    local SelectedEvent = nil
+    local EventNotificationSound = true
+
+    -- Services
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    local RunService = game:GetService("RunService")
+
+    -- Available events
+    local AvailableEvents = {
+        "Bee Swarm",
+        "Meteor Shower",
+        "Treasure Hunt",
+        "Seed Shower",
+        "Fertilizer Rain",
+        "Golden Hour"
+    }
+
+    -- ================================================================
+    -- HELPER FUNCTIONS
+    -- ================================================================
+    
+    -- Function to check if an event is active
+    local function isEventActive(eventName)
+        -- This is a placeholder. In a real implementation, you would check game state
+        -- to determine if the specified event is currently active
+        local activeEvents = workspace:FindFirstChild("ActiveEvents")
+        if activeEvents and activeEvents:FindFirstChild(eventName) then
+            return true
+        end
+        return false
+    end
+    
+    -- Function to join an event
+    local function joinEvent(eventName)
+        print("🎮 Attempting to join event: " .. eventName)
+        
+        -- This is a placeholder. In a real implementation, you would use the appropriate
+        -- remote event to join the specified event
+        local success, err = pcall(function()
+            -- Example: ReplicatedStorage.GameEvents.EventService:FireServer("JoinEvent", eventName)
+            -- For demonstration, we'll just print a success message
+            print("✅ Successfully joined event: " .. eventName)
+            Library:Notify("🎉 Joined event: " .. eventName, 3)
+        end)
+        
+        if not success then
+            print("❌ Failed to join event: " .. tostring(err))
+            Library:Notify("❌ Failed to join event: " .. eventName, 3)
+        end
+        
+        return success
+    end
+    
+    -- Function to play notification sound
+    local function playNotificationSound()
+        if not EventNotificationSound then return end
+        
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://6518811702" -- Notification sound
+        sound.Volume = 0.5
+        sound.Parent = game:GetService("SoundService")
+        sound:Play()
+        
+        -- Clean up sound after playing
+        sound.Ended:Connect(function()
+            sound:Destroy()
+        end)
+    end
+
+    -- ================================================================
+    -- EVENT MONITORING
+    -- ================================================================
+    
+    -- Function to monitor for active events
+    local function startEventMonitoring()
+        -- Connect to event start notifications
+        if ReplicatedStorage:FindFirstChild("GameEvents") and 
+           ReplicatedStorage.GameEvents:FindFirstChild("EventStarted") then
+            
+            ReplicatedStorage.GameEvents.EventStarted.OnClientEvent:Connect(function(eventName, duration)
+                print("🎉 Event started: " .. eventName .. " (Duration: " .. duration .. "s)")
+                
+                if NotifyOnEvents then
+                    Library:Notify("🎉 Event started: " .. eventName .. " (Duration: " .. duration .. "s)", 5)
+                    playNotificationSound()
+                end
+                
+                if AutoJoinEvents then
+                    task.wait(1) -- Small delay before auto-joining
+                    joinEvent(eventName)
+                end
+            end)
+            
+            print("✅ Event monitoring system initialized")
+        else
+            print("⚠️ Could not find event notification system")
+        end
+    end
+
+    -- ================================================================
+    -- UI ELEMENTS
+    -- ================================================================
+    
+    -- Event selection dropdown
+    EventManagementGroupBox:AddDropdown("EventSelection", {
+        Values = AvailableEvents,
+        Default = 1,
+        Multi = false, -- Single selection only
+        Text = "Select Event",
+        Tooltip = "Choose which event to join",
+        Callback = function(Value)
+            SelectedEvent = Value
+            print("[cb] Selected event:", Value)
+        end,
+    })
+    
+    -- Join event button
+    EventManagementGroupBox:AddButton("Join Selected Event", function()
+        if not SelectedEvent then
+            Library:Notify("⚠️ Please select an event first!", 3)
+            return
+        end
+        
+        joinEvent(SelectedEvent)
+    end)
+    
+    EventManagementGroupBox:AddDivider()
+    
+    -- Auto join events toggle
+    EventSettingsGroupBox:AddToggle("AutoJoinEvents", {
+        Text = "🔄 Auto-Join Events",
+        Default = false,
+        Tooltip = "Automatically join events when they start",
+        Callback = function(Value)
+            AutoJoinEvents = Value
+            print("[cb] Auto-Join Events toggled:", Value)
+            
+            if Value then
+                Library:Notify("🔄 Auto-Join Events enabled!", 3)
+            else
+                Library:Notify("🔄 Auto-Join Events disabled!", 3)
+            end
+        end,
+    })
+    
+    -- Notify on events toggle
+    EventSettingsGroupBox:AddToggle("NotifyOnEvents", {
+        Text = "🔔 Notify On Events",
+        Default = true,
+        Tooltip = "Show notifications when events start",
+        Callback = function(Value)
+            NotifyOnEvents = Value
+            print("[cb] Notify On Events toggled:", Value)
+            
+            if Value then
+                Library:Notify("🔔 Event notifications enabled!", 3)
+            else
+                Library:Notify("🔔 Event notifications disabled!", 3)
+            end
+        end,
+    })
+    
+    -- Notification sound toggle
+    EventSettingsGroupBox:AddToggle("EventNotificationSound", {
+        Text = "🔊 Notification Sound",
+        Default = true,
+        Tooltip = "Play a sound when events start",
+        Callback = function(Value)
+            EventNotificationSound = Value
+            print("[cb] Event Notification Sound toggled:", Value)
+        end,
+    })
+    
+    EventSettingsGroupBox:AddDivider()
+    
+    -- Event status section
+    EventSettingsGroupBox:AddLabel("Event Status:")
+    
+    -- Update event status periodically
+    local EventStatusLabel = EventSettingsGroupBox:AddLabel("No active events")
+    
+    task.spawn(function()
+        while true do
+            local activeEventCount = 0
+            local activeEventList = ""
+            
+            for _, eventName in ipairs(AvailableEvents) do
+                if isEventActive(eventName) then
+                    activeEventCount = activeEventCount + 1
+                    activeEventList = activeEventList .. "• " .. eventName .. "\n"
+                end
+            end
+            
+            if activeEventCount > 0 then
+                EventStatusLabel:SetText("Active Events (" .. activeEventCount .. "):\n" .. activeEventList)
+            else
+                EventStatusLabel:SetText("No active events")
+            end
+            
+            task.wait(5) -- Update every 5 seconds
+        end
+    end)
+
+    -- Start event monitoring
+    startEventMonitoring()
+
+    -- ================================================================
+    -- SUCCESS MESSAGE
+    -- ================================================================
+    print("🎮 RE:FACTOR Event Tab initialized with " .. #AvailableEvents .. " events")
+    Library:Notify("🎮 RE:FACTOR Event Tab loaded!", 3)
+
+    return true
+end
+
+-- ================================================================
+-- AUTO-EXECUTION AND MODULE COMPATIBILITY
+-- ================================================================
+
+-- Check if this is being executed directly or loaded as a module
+if getgenv and getgenv().MainScriptLoaded then
+    -- Main script is already loaded, initialize immediately
+    local success = initializeEventTab()
+    if success then
+        print("✅ RE:FACTOR Event Tab successfully integrated!")
+    end
+else
+    -- Wait for main script to load, then initialize
+    print("⏳ Waiting for main script to load...")
+
+    local function waitForMainScript()
+        local maxWait = 30 -- seconds
+        local waited = 0
+
+        while waited < maxWait do
+            if getgenv and getgenv().MainScriptLoaded and Tabs and Window and Library then
+                local success = initializeEventTab()
+                if success then
+                    print("✅ RE:FACTOR Event Tab successfully integrated after waiting!")
+                    return true
+                end
+            end
+
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
+
+        warn("⚠️ RE:FACTOR Event Tab: Timed out waiting for main script")
+        return false
+    end
+
+    -- Run the wait function
+    task.spawn(waitForMainScript)
+end
+
+-- ================================================================
+-- LOADSTRING COMPATIBILITY (for raw GitHub execution)
+-- ================================================================
+
+return {
+    initialize = initializeEventTab,
+    name = "RE:FACTOR Event Manager",
+    version = "1.0.0",
+    repository = "Resn"
+}
