@@ -10,6 +10,12 @@ local function initializeOnb()
         return false
     end
 
+    -- Create the Event tab if it doesn't exist
+    if not Tabs.Event then
+        Tabs.Event = Window:AddTab("Event", "calendar")
+        print("✅ Created Event tab")
+    end
+
     -- ================================================================
     -- DINO QUEST GROUPBOX
     -- ================================================================
