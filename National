@@ -475,16 +475,17 @@ DinoMachineGroupBox:AddButton("Debug Pet Data", function()
                 if data.PetsData.PetInventory then
                     print("✅ PetInventory exists")
                     if data.PetsData.PetInventory.Data then
-                        print("✅ PetInventory.Data exists with", #data.PetsData.PetInventory.Data or "unknown", "entries")
+                        print("✅ PetInventory.Data exists")
                         local count = 0
                         for uuid, petData in pairs(data.PetsData.PetInventory.Data) do
                             count = count + 1
-                            if count <= 3 then -- Show first 3 pets
+                            if count <= 5 then -- Show first 5 pets
                                 print("🐾 Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
                             end
                         end
-                        if count > 3 then
-                            print("... and", count - 3, "more pets")
+                        print("📦 Total pets in PetInventory.Data:", count)
+                        if count > 5 then
+                            print("... and", count - 5, "more pets")
                         end
                     else
                         print("❌ PetInventory.Data is nil")
@@ -499,11 +500,35 @@ DinoMachineGroupBox:AddButton("Debug Pet Data", function()
             -- Check direct access
             if data.PetInventory then
                 print("✅ Direct PetInventory exists")
+                local count = 0
+                for uuid, petData in pairs(data.PetInventory) do
+                    count = count + 1
+                    if count <= 3 then
+                        print("🐾 Direct Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
+                    end
+                end
+                print("📦 Total pets in direct PetInventory:", count)
             end
             
             if data.Pets then
                 print("✅ Direct Pets exists")
+                local count = 0
+                for uuid, petData in pairs(data.Pets) do
+                    count = count + 1
+                    if count <= 3 then
+                        print("🐾 Direct Pets Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
+                    end
+                end
+                print("📦 Total pets in direct Pets:", count)
             end
+            
+            -- Test specific pet searches
+            print("\n🔍 Testing specific pet searches:")
+            local dogPets = findPlayerPetsByType("Dog")
+            print("🐕 Dog search result:", #dogPets, "pets found")
+            
+            local bunnyPets = findPlayerPetsByType("Bunny")
+            print("🐰 Bunny search result:", #bunnyPets, "pets found")
             
         else
             print("❌ No player data found!")
@@ -579,12 +604,14 @@ local function findPlayerPetsByType(petType)
         -- Debug: Print data structure
         print("🔍 Searching for pet type:", petType)
         
-        -- Method 1: Check PetsData.PetInventory
+        -- Method 1: Check all pets in PetsData.PetInventory.Data (even if count shows 0)
         if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
             local petInventory = data.PetsData.PetInventory.Data
-            print("📦 Found PetInventory with", #petInventory or "unknown", "entries")
+            print("📦 Checking PetInventory.Data...")
             
+            local petCount = 0
             for petUUID, petData in pairs(petInventory) do
+                petCount = petCount + 1
                 if petData and petData.PetType then
                     print("🐾 Found pet:", petData.PetType, "UUID:", petUUID)
                     if petData.PetType == petType then
@@ -593,40 +620,56 @@ local function findPlayerPetsByType(petType)
                             petType = petData.PetType,
                             petData = petData
                         })
+                        print("✅ Matched target pet type:", petType)
                     end
                 end
             end
+            print("📦 Total pets found in PetInventory.Data:", petCount)
         end
         
         -- Method 2: Check PetInventory directly
-        if #foundPets == 0 and data.PetInventory then
+        if data.PetInventory then
             print("📦 Trying direct PetInventory access")
+            local petCount = 0
             for petUUID, petData in pairs(data.PetInventory) do
-                if petData and petData.PetType == petType then
-                    table.insert(foundPets, {
-                        uuid = petUUID,
-                        petType = petData.PetType,
-                        petData = petData
-                    })
+                petCount = petCount + 1
+                if petData and petData.PetType then
+                    print("🐾 Direct pet:", petData.PetType, "UUID:", petUUID)
+                    if petData.PetType == petType then
+                        table.insert(foundPets, {
+                            uuid = petUUID,
+                            petType = petData.PetType,
+                            petData = petData
+                        })
+                        print("✅ Direct matched target pet type:", petType)
+                    end
                 end
             end
+            print("📦 Total pets found in direct PetInventory:", petCount)
         end
         
         -- Method 3: Check Pets directly
-        if #foundPets == 0 and data.Pets then
+        if data.Pets then
             print("📦 Trying direct Pets access")
+            local petCount = 0
             for petUUID, petData in pairs(data.Pets) do
-                if petData and petData.PetType == petType then
-                    table.insert(foundPets, {
-                        uuid = petUUID,
-                        petType = petData.PetType,
-                        petData = petData
-                    })
+                petCount = petCount + 1
+                if petData and petData.PetType then
+                    print("🐾 Direct Pets pet:", petData.PetType, "UUID:", petUUID)
+                    if petData.PetType == petType then
+                        table.insert(foundPets, {
+                            uuid = petUUID,
+                            petType = petData.PetType,
+                            petData = petData
+                        })
+                        print("✅ Direct Pets matched target pet type:", petType)
+                    end
                 end
             end
+            print("📦 Total pets found in direct Pets:", petCount)
         end
         
-        print("✅ Found", #foundPets, petType, "pets in inventory")
+        print("✅ FINAL RESULT: Found", #foundPets, petType, "pets in inventory")
         return foundPets
     end)
     
