@@ -482,23 +482,53 @@ DinoMachineGroupBox:AddDropdown("PetSelection", {
     Text = "Select Pets to Give",
     Tooltip = "Choose which pets to automatically equip and give to dino machine (multi-select)",
     Callback = function(Value)
+        print("[cb] RAW Value received:", Value, "Type:", type(Value))
+        
         SelectedPetsToGive = {}
         
-        -- Handle both table of indices and table of values
-        if type(Value) == "table" then
+        -- Handle different possible value formats
+        if Value == nil then
+            print("[cb] Value is nil!")
+            return
+        end
+        
+        if type(Value) == "string" then
+            -- Single string value
+            table.insert(SelectedPetsToGive, Value)
+            print("[cb] Added single string:", Value)
+        elseif type(Value) == "table" then
+            print("[cb] Value is table with", #Value, "items")
+            
+            -- Print table contents for debugging
+            for i, v in pairs(Value) do
+                print("[cb] Table item", i, "=", v, "type:", type(v))
+            end
+            
             for _, v in pairs(Value) do
                 if type(v) == "number" then
                     -- v is an index, get the pet name from AllPets
-                    table.insert(SelectedPetsToGive, AllPets[v])
+                    if AllPets[v] then
+                        table.insert(SelectedPetsToGive, AllPets[v])
+                        print("[cb] Added by index:", v, "->", AllPets[v])
+                    end
                 elseif type(v) == "string" then
                     -- v is already a pet name
                     table.insert(SelectedPetsToGive, v)
+                    print("[cb] Added string:", v)
                 end
             end
+        elseif type(Value) == "number" then
+            -- Single number index
+            if AllPets[Value] then
+                table.insert(SelectedPetsToGive, AllPets[Value])
+                print("[cb] Added by single index:", Value, "->", AllPets[Value])
+            end
+        else
+            print("[cb] Unknown value type:", type(Value))
         end
         
-        print("[cb] Selected pets to give:", table.concat(SelectedPetsToGive, ", "))
-        print("[cb] SelectedPetsToGive count:", #SelectedPetsToGive)
+        print("[cb] Final Selected pets to give:", table.concat(SelectedPetsToGive, ", "))
+        print("[cb] Final SelectedPetsToGive count:", #SelectedPetsToGive)
         
         -- Check inventory for newly selected pets
         if #SelectedPetsToGive > 0 then
@@ -516,7 +546,7 @@ DinoMachineGroupBox:AddDropdown("PetSelection", {
                 Library:Notify("⚠️ Missing: " .. table.concat(missingPets, ", "), 3)
             end
         else
-            print("[cb] No pets selected!")
+            print("[cb] No pets selected after processing!")
         end
     end,
 })
