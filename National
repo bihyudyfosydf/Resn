@@ -483,10 +483,22 @@ DinoMachineGroupBox:AddDropdown("PetSelection", {
     Tooltip = "Choose which pets to automatically equip and give to dino machine (multi-select)",
     Callback = function(Value)
         SelectedPetsToGive = {}
-        for _, v in pairs(Value) do
-            table.insert(SelectedPetsToGive, AllPets[v])
+        
+        -- Handle both table of indices and table of values
+        if type(Value) == "table" then
+            for _, v in pairs(Value) do
+                if type(v) == "number" then
+                    -- v is an index, get the pet name from AllPets
+                    table.insert(SelectedPetsToGive, AllPets[v])
+                elseif type(v) == "string" then
+                    -- v is already a pet name
+                    table.insert(SelectedPetsToGive, v)
+                end
+            end
         end
+        
         print("[cb] Selected pets to give:", table.concat(SelectedPetsToGive, ", "))
+        print("[cb] SelectedPetsToGive count:", #SelectedPetsToGive)
         
         -- Check inventory for newly selected pets
         if #SelectedPetsToGive > 0 then
@@ -503,6 +515,8 @@ DinoMachineGroupBox:AddDropdown("PetSelection", {
             if #missingPets > 0 then
                 Library:Notify("⚠️ Missing: " .. table.concat(missingPets, ", "), 3)
             end
+        else
+            print("[cb] No pets selected!")
         end
     end,
 })
@@ -517,11 +531,14 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
     Callback = function(Value)
         AutoGiveEnabled = Value
         print("[cb] Auto Give toggled:", Value)
+        print("[cb] Current SelectedPetsToGive:", table.concat(SelectedPetsToGive, ", "))
+        print("[cb] SelectedPetsToGive count:", #SelectedPetsToGive)
         
         if Value then
             -- Check if any pets are selected
             if #SelectedPetsToGive == 0 then
                 Library:Notify("⚠️ Please select pets to give first!", 3)
+                print("[cb] ERROR: No pets selected - SelectedPetsToGive is empty")
                 task.wait(0.1)
                 if Toggles and Toggles.AutoGive then
                     Toggles.AutoGive:SetValue(false)
