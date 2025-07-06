@@ -27,6 +27,11 @@ local function initializeCrafterTab()
     local GearCrafterGroupBox = CrafterTab:AddRightGroupbox("Gear Crafter")
 
     -- ================================================================
+    -- DINO CRAFTER GROUPBOX
+    -- ================================================================
+    local DinoCrafterGroupBox = CrafterTab:AddLeftGroupbox("Dino Craft")
+
+    -- ================================================================
     -- GLOBAL VARIABLES
     -- ================================================================
     local SelectedRecipe = nil
@@ -35,6 +40,10 @@ local function initializeCrafterTab()
     -- Gear Crafter Variables
     local SelectedGearRecipe = nil
     local AutoGearClaimEnabled = false
+
+    -- Dino Crafter Variables
+    local SelectedDinoRecipe = nil
+    local AutoDinoClaimEnabled = false
 
     -- Services
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -67,6 +76,13 @@ local function initializeCrafterTab()
         "Mutation Spray Shocked",
         "Anti Bee Egg",
         "Pack Bee"
+    }
+
+    -- Available dino recipes
+    local AvailableDinoRecipes = {
+        "Mutation Spray Amber",
+        "Ancient Seed Pack",
+        "Dino Crate"
     }
 
     -- Recipe data for inventory checking
@@ -259,6 +275,44 @@ local function initializeCrafterTab()
             MachineTypes = {"GearEventWorkbench"},
             PurchaseID = 3306484257,
             RobuxPrice = 799
+        }
+    }
+
+    -- Dino Recipe data for dino crafting
+    local DinoRecipeData = {
+        ["Mutation Spray Amber"] = {
+            LayoutOrder = 90,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
+                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 1000000},
+            MachineTypes = {"DinoEventWorkbench"},
+            PurchaseID = 3322971805,
+            RobuxPrice = 189
+        },
+        ["Ancient Seed Pack"] = {
+            LayoutOrder = 100,
+            TimeToCraft = 3600,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 5500000},
+            MachineTypes = {"DinoEventWorkbench"},
+            PurchaseID = 3324600388,
+            RobuxPrice = 199
+        },
+        ["Dino Crate"] = {
+            LayoutOrder = 110,
+            TimeToCraft = 1800,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 5500000},
+            MachineTypes = {"DinoEventWorkbench"},
+            PurchaseID = 3324601485,
+            RobuxPrice = 179
         }
     }
 
@@ -653,9 +707,37 @@ local function initializeCrafterTab()
         end
     end
 
+    -- Function to claim dino recipe
+    local function claimDinoRecipe(recipeName)
+        local success, err = pcall(function()
+            print("🦕 Setting dino recipe:", recipeName)
+            local DinoCraftingTable = workspace.Interaction.UpdateItems.DinoEvent.DinoCraftingTable
+            
+            CraftingGlobalObjectService:FireServer(
+                "SetRecipe",
+                DinoCraftingTable,
+                "DinoEventWorkbench",
+                recipeName
+            )
+        end)
+
+        if success then
+            print("✅ Successfully set dino recipe:", recipeName)
+            return true
+        else
+            print("❌ Failed to set dino recipe:", err)
+            return false
+        end
+    end
+
     -- Function to automatically input gear items into recipe (enhanced with auto-craft)
     local function autoInputGearItems(recipeData)
         return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
+    end
+
+    -- Function to automatically input dino items into recipe (enhanced with auto-craft)
+    local function autoInputDinoItems(recipeData)
+        return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "DinoEventWorkbench")
     end
 
     -- Function to start crafting after items are input
@@ -818,6 +900,11 @@ local function initializeCrafterTab()
         return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
     end
 
+    -- Enhanced autoInputDinoItems that uses the full auto-craft functionality  
+    local function autoInputDinoItemsEnhanced(recipeData)
+        return autoInputItemsAndCraft(recipeData, workspace.Interaction.UpdateItems.DinoEvent.DinoCraftingTable, "DinoEventWorkbench")
+    end
+
     -- ================================================================
     -- UI ELEMENTS
     -- ================================================================
@@ -937,11 +1024,86 @@ local function initializeCrafterTab()
     GearCrafterGroupBox:AddDivider()
 
     -- ================================================================
+    -- DINO CRAFTER UI ELEMENTS  
+    -- ================================================================
+
+    -- Dino Recipe selection dropdown
+    DinoCrafterGroupBox:AddDropdown("DinoRecipeSelection", {
+        Values = AvailableDinoRecipes,
+        Default = 1,
+        Multi = false, -- Single selection only
+        Text = "Select Dino Recipe",
+        Tooltip = "Choose which dino recipe to claim/set",
+        Callback = function(Value)
+            SelectedDinoRecipe = Value
+            print("[cb] Selected dino recipe:", Value)
+        end,
+    })
+
+    -- Auto dino claim toggle
+    DinoCrafterGroupBox:AddToggle("AutoDinoClaim", {
+        Text = "🦕 Auto Craft Dino (Full Auto)",
+        Default = false,
+        Tooltip = "Set dino recipe, input items, start crafting, and auto-claim when done - fully automatic!",
+        Callback = function(Value)
+            print("[cb] Auto Craft Dino toggled:", Value)
+            
+            if Value then
+                if not SelectedDinoRecipe then
+                    print("⚠️ Please select a dino recipe first!")
+                    -- Use task.wait to avoid immediate callback loop
+                    task.wait(0.1)
+                    if Toggles and Toggles.AutoDinoClaim then
+                        Toggles.AutoDinoClaim:SetValue(false)
+                    end
+                    return
+                end
+
+                print("🦕 Auto-crafting dino recipe:", SelectedDinoRecipe)
+                
+                -- Step 1: Set the dino recipe
+                claimDinoRecipe(SelectedDinoRecipe)
+                task.wait(1) -- Wait for recipe to be set
+                
+                -- Step 2: Auto-input available dino items and start crafting
+                local recipeData = DinoRecipeData[SelectedDinoRecipe]
+                if recipeData then
+                    autoInputDinoItemsEnhanced(recipeData)
+                end
+                
+                -- Turn toggle back off after processing
+                task.wait(0.1)
+                if Toggles and Toggles.AutoDinoClaim then
+                    Toggles.AutoDinoClaim:SetValue(false)
+                end
+            end
+        end
+    })
+
+    -- Manual Dino Machine Reward Claim button
+    DinoCrafterGroupBox:AddButton("🎁 Claim Dino Machine Reward", function()
+        local success, err = pcall(function()
+            print("🎁 Claiming dino machine reward...")
+            local DinoMachineService_RE = game:GetService("ReplicatedStorage").GameEvents.DinoMachineService_RE
+            DinoMachineService_RE:FireServer("ClaimReward")
+        end)
+        
+        if success then
+            print("✅ Successfully claimed dino machine reward!")
+        else
+            print("❌ Failed to claim dino machine reward:", err)
+        end
+    end)
+
+    DinoCrafterGroupBox:AddDivider()
+
+    -- ================================================================
     -- SUCCESS MESSAGE
     -- ================================================================
     -- Library:Notify("🔨 Simple Seed Crafter loaded!", 3) -- Disabled notification
     print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
     print("⚙️ Gear Crafter initialized with " .. #AvailableGearRecipes .. " gear recipes")
+    print("🐉 Dino Crafter initialized with " .. #AvailableDinoRecipes .. " dino recipes")
 
     return true
 end
