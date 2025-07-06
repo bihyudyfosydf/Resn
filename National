@@ -33,7 +33,7 @@ local Library, Window, Tabs = waitForMainScript()
 -- ================================================================
 -- CREATE EVENT TAB
 -- ================================================================
-local EventTab = Window:AddTab("Event")
+local EventTab = Window:AddTab("Event", "calendar")
 
 -- ================================================================
 -- EVENT TAB CONTENT (Currently Empty)
