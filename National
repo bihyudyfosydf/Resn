@@ -432,6 +432,19 @@ DinoMachineGroupBox:AddDivider()
 
 -- Add inventory check button
 DinoMachineGroupBox:AddButton("Check Pet Inventory", function()
+    print("🔍 === ENHANCED PET INVENTORY CHECK ===")
+    
+    -- Test the enhanced findPlayerPetsByType function
+    print("Testing search for 'Dog' pets:")
+    local dogPets = findPlayerPetsByType("Dog")
+    print("Dog pets found:", #dogPets)
+    
+    print("\nTesting search for 'Bunny' pets:")
+    local bunnyPets = findPlayerPetsByType("Bunny")
+    print("Bunny pets found:", #bunnyPets)
+    
+    -- Now check the full selected pets function
+    print("\n=== CHECKING SELECTED PETS ===")
     local availablePets, missingPets = getAvailableSelectedPets()
     
     if #availablePets > 0 then
@@ -448,7 +461,7 @@ DinoMachineGroupBox:AddButton("Check Pet Inventory", function()
         end
         
         print(inventoryText)
-        Library:Notify("📦 Check console for inventory details", 3)
+        Library:Notify("📦 Check console for detailed inventory info", 4)
     else
         local message = "❌ No selected pets found in inventory!"
         if #missingPets > 0 then
@@ -457,6 +470,8 @@ DinoMachineGroupBox:AddButton("Check Pet Inventory", function()
         print(message)
         Library:Notify(message, 4)
     end
+    
+    print("=== END INVENTORY CHECK ===")
 end)
 
 -- Add debug button to inspect data structure
@@ -469,67 +484,37 @@ DinoMachineGroupBox:AddButton("Debug Pet Data", function()
         if data then
             print("✅ Player data exists")
             
-            -- Check various possible pet storage locations
-            if data.PetsData then
-                print("✅ PetsData exists")
-                if data.PetsData.PetInventory then
-                    print("✅ PetInventory exists")
-                    if data.PetsData.PetInventory.Data then
-                        print("✅ PetInventory.Data exists")
-                        local count = 0
-                        for uuid, petData in pairs(data.PetsData.PetInventory.Data) do
-                            count = count + 1
-                            if count <= 5 then -- Show first 5 pets
-                                print("🐾 Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
-                            end
-                        end
-                        print("📦 Total pets in PetInventory.Data:", count)
-                        if count > 5 then
-                            print("... and", count - 5, "more pets")
-                        end
-                    else
-                        print("❌ PetInventory.Data is nil")
+            -- Check pet storage location
+            if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
+                print("✅ PetInventory.Data exists")
+                local count = 0
+                local dogFound = false
+                local bunnyFound = false
+                
+                for uuid, petData in pairs(data.PetsData.PetInventory.Data) do
+                    count = count + 1
+                    if count <= 5 then -- Show first 5 pets
+                        print("🐾 Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
                     end
-                else
-                    print("❌ PetInventory is nil")
+                    
+                    -- Check for our target pets
+                    if petData.PetType == "Dog" then
+                        dogFound = true
+                    elseif petData.PetType == "Bunny" then
+                        bunnyFound = true
+                    end
+                end
+                
+                print("📦 Total pets in PetInventory.Data:", count)
+                print("🐕 Dog found:", dogFound and "YES" or "NO")
+                print("� Bunny found:", bunnyFound and "YES" or "NO")
+                
+                if count > 5 then
+                    print("... and", count - 5, "more pets")
                 end
             else
-                print("❌ PetsData is nil")
+                print("❌ PetInventory.Data not accessible")
             end
-            
-            -- Check direct access
-            if data.PetInventory then
-                print("✅ Direct PetInventory exists")
-                local count = 0
-                for uuid, petData in pairs(data.PetInventory) do
-                    count = count + 1
-                    if count <= 3 then
-                        print("🐾 Direct Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
-                    end
-                end
-                print("📦 Total pets in direct PetInventory:", count)
-            end
-            
-            if data.Pets then
-                print("✅ Direct Pets exists")
-                local count = 0
-                for uuid, petData in pairs(data.Pets) do
-                    count = count + 1
-                    if count <= 3 then
-                        print("🐾 Direct Pets Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
-                    end
-                end
-                print("📦 Total pets in direct Pets:", count)
-            end
-            
-            -- Test specific pet searches
-            print("\n🔍 Testing specific pet searches:")
-            local dogPets = findPlayerPetsByType("Dog")
-            print("🐕 Dog search result:", #dogPets, "pets found")
-            
-            local bunnyPets = findPlayerPetsByType("Bunny")
-            print("🐰 Bunny search result:", #bunnyPets, "pets found")
-            
         else
             print("❌ No player data found!")
         end
@@ -592,84 +577,53 @@ local function findPlayerPetsByType(petType)
     local foundPets = {}
     
     local success, result = pcall(function()
-        -- Try multiple methods to get pet inventory
         local DataService = require(Services.ReplicatedStorage.Modules.DataService)
         local data = DataService:GetData()
         
         if not data then
-            print("❌ No player data found")
+            print("❌ DEBUG: No player data available")
             return {}
         end
         
-        -- Debug: Print data structure
-        print("🔍 Searching for pet type:", petType)
-        
-        -- Method 1: Check all pets in PetsData.PetInventory.Data (even if count shows 0)
+        -- Direct search in PetsData.PetInventory.Data where we know pets exist
         if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
             local petInventory = data.PetsData.PetInventory.Data
-            print("📦 Checking PetInventory.Data...")
             
-            local petCount = 0
+            -- Count total pets properly
+            local totalPetCount = 0
+            for _ in pairs(petInventory) do
+                totalPetCount = totalPetCount + 1
+            end
+            
+            print("🔍 DEBUG: Searching for petType:", petType, "in inventory with", totalPetCount, "pets")
+            
+            local searchCount = 0
             for petUUID, petData in pairs(petInventory) do
-                petCount = petCount + 1
+                searchCount = searchCount + 1
                 if petData and petData.PetType then
-                    print("🐾 Found pet:", petData.PetType, "UUID:", petUUID)
+                    -- Debug: Show each pet type we're checking
+                    if searchCount <= 3 then -- Only show first 3 for brevity
+                        print("   🐾 Checking pet", searchCount .. ":", petData.PetType, "vs target:", petType)
+                    end
+                    
                     if petData.PetType == petType then
+                        print("✅ DEBUG: Found matching pet!", petType, "UUID:", petUUID)
                         table.insert(foundPets, {
                             uuid = petUUID,
                             petType = petData.PetType,
                             petData = petData
                         })
-                        print("✅ Matched target pet type:", petType)
                     end
+                else
+                    print("⚠️ DEBUG: Pet data incomplete for UUID:", petUUID)
                 end
             end
-            print("📦 Total pets found in PetInventory.Data:", petCount)
+            
+            print("🔍 DEBUG: Search complete. Found", #foundPets, "pets of type:", petType)
+        else
+            print("❌ DEBUG: PetInventory.Data not accessible")
         end
         
-        -- Method 2: Check PetInventory directly
-        if data.PetInventory then
-            print("📦 Trying direct PetInventory access")
-            local petCount = 0
-            for petUUID, petData in pairs(data.PetInventory) do
-                petCount = petCount + 1
-                if petData and petData.PetType then
-                    print("🐾 Direct pet:", petData.PetType, "UUID:", petUUID)
-                    if petData.PetType == petType then
-                        table.insert(foundPets, {
-                            uuid = petUUID,
-                            petType = petData.PetType,
-                            petData = petData
-                        })
-                        print("✅ Direct matched target pet type:", petType)
-                    end
-                end
-            end
-            print("📦 Total pets found in direct PetInventory:", petCount)
-        end
-        
-        -- Method 3: Check Pets directly
-        if data.Pets then
-            print("📦 Trying direct Pets access")
-            local petCount = 0
-            for petUUID, petData in pairs(data.Pets) do
-                petCount = petCount + 1
-                if petData and petData.PetType then
-                    print("🐾 Direct Pets pet:", petData.PetType, "UUID:", petUUID)
-                    if petData.PetType == petType then
-                        table.insert(foundPets, {
-                            uuid = petUUID,
-                            petType = petData.PetType,
-                            petData = petData
-                        })
-                        print("✅ Direct Pets matched target pet type:", petType)
-                    end
-                end
-            end
-            print("📦 Total pets found in direct Pets:", petCount)
-        end
-        
-        print("✅ FINAL RESULT: Found", #foundPets, petType, "pets in inventory")
         return foundPets
     end)
     
@@ -681,17 +635,41 @@ local function findPlayerPetsByType(petType)
     end
 end
 
--- Function to equip a pet
+-- Function to get Pet Services (like REfactoreMian)
+local function getPetServices()
+    local success, result = pcall(function()
+        if Services.ReplicatedStorage:FindFirstChild("Modules") and Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
+            local PetServices = Services.ReplicatedStorage.Modules.PetServices
+            local ActivePetsService = require(PetServices:FindFirstChild("ActivePetsService"))
+            local PetsService = require(PetServices:FindFirstChild("PetsService"))
+            return {
+                ActivePetsService = ActivePetsService,
+                PetsService = PetsService,
+            }
+        end
+        return nil
+    end)
+    if success then
+        return result
+    else
+        return nil
+    end
+end
+
+-- Function to equip a pet (fixed to use proper PetsService module)
 local function equipPet(petUUID)
     local success, err = pcall(function()
-        local PetService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetService")
+        local petServices = getPetServices()
         
-        if PetService then
-            PetService:FireServer("EquipPet", petUUID)
+        if petServices and petServices.PetsService then
+            -- Use the PetsService module's EquipPet method
+            -- Based on the module signature: EquipPet(arg1, arg2, arg3)
+            -- arg1 = self, arg2 = petUUID, arg3 = unknown (try nil or empty)
+            petServices.PetsService:EquipPet(petUUID, nil)
             print("🎒 Equipped pet:", petUUID)
             return true
         else
-            print("❌ PetService not found!")
+            print("❌ PetsService module not found!")
             return false
         end
     end)
