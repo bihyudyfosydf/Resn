@@ -31,53 +31,208 @@ end
 local Library, Window, Tabs = waitForMainScript()
 
 -- ================================================================
+-- SERVICES SETUP
+-- ================================================================
+local Services = {
+    Workspace = game:GetService("Workspace"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players"),
+    CollectionService = game:GetService("CollectionService"),
+    RunService = game:GetService("RunService")
+}
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+-- ================================================================
 -- CREATE EVENT TAB
 -- ================================================================
 local EventTab = Window:AddTab("Event", "calendar")
 
 -- ================================================================
--- EVENT TAB CONTENT (Currently Empty)
+-- AUTO HATCH SYSTEM
 -- ================================================================
-local EventGroupBox = EventTab:AddLeftGroupbox("Event System")
+local AutoHatchGroupBox = EventTab:AddLeftGroupbox("AutoHatch 🥚")
 
--- Placeholder content - ready for future event features
-EventGroupBox:AddLabel("🎉 Event Tab Ready!")
-EventGroupBox:AddLabel("This tab is prepared for:")
-EventGroupBox:AddLabel("• Seasonal events")
-EventGroupBox:AddLabel("• Special challenges") 
-EventGroupBox:AddLabel("• Time-limited rewards")
-EventGroupBox:AddLabel("• Event automation")
+-- Variables for AutoHatch system
+local AutoHatchEnabled = false
+local BlacklistDinoEggs = false
+local autoHatchConnection = nil
 
-EventGroupBox:AddDivider()
+-- List of Dinosaur Egg names to blacklist
+local DinosaurEggNames = {
+    "Dinosaur Egg"
+}
 
--- Example event features (disabled for now)
-EventGroupBox:AddButton("🎯 Event Features Coming Soon", function()
-    Library:Notify("🎉 Event features will be added here soon!", 3)
+-- Function to check if an egg is a dinosaur egg
+local function isDinosaurEgg(eggName)
+    if not eggName then return false end
+    
+    for _, dinoEggName in pairs(DinosaurEggNames) do
+        if eggName == dinoEggName then
+            return true
+        end
+    end
+    return false
+end
+
+-- Function to get all player's eggs
+local function getPlayerEggs()
+    local playerEggs = {}
+    
+    -- Get all eggs with PetEggServer tag that belong to the player
+    for _, eggObject in pairs(Services.CollectionService:GetTagged("PetEggServer")) do
+        if eggObject:GetAttribute("OWNER") == LocalPlayer.Name then
+            table.insert(playerEggs, eggObject)
+        end
+    end
+    
+    return playerEggs
+end
+
+-- Function to check if an egg is ready to hatch
+local function isEggReady(eggObject)
+    -- Check if egg has READY attribute and it's true
+    local ready = eggObject:GetAttribute("READY")
+    local timeToHatch = eggObject:GetAttribute("TimeToHatch")
+    
+    -- Egg is ready if READY attribute is true OR TimeToHatch is 0 or nil
+    return (ready == true) or (timeToHatch and timeToHatch <= 0)
+end
+
+-- Function to hatch an egg
+local function hatchEgg(eggObject)
+    -- Get the PetEggService remote event
+    local PetEggService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetEggService")
+    
+    if PetEggService then
+        -- Fire the server with "HatchPet" command and the egg object
+        PetEggService:FireServer("HatchPet", eggObject)
+        
+        local eggName = eggObject:GetAttribute("EggName") or "Unknown Egg"
+        print("🥚 Hatched:", eggName)
+        Library:Notify("🥚 Hatched: " .. eggName, 2)
+        return true
+    else
+        print("❌ PetEggService not found!")
+        return false
+    end
+end
+
+-- Main auto hatch function
+local function performAutoHatch()
+    if not AutoHatchEnabled then return end
+    
+    local playerEggs = getPlayerEggs()
+    local hatchedCount = 0
+    
+    for _, eggObject in pairs(playerEggs) do
+        if isEggReady(eggObject) then
+            local eggName = eggObject:GetAttribute("EggName")
+            
+            -- Check if we should skip dinosaur eggs
+            if BlacklistDinoEggs and isDinosaurEgg(eggName) then
+                print("⚠️ Skipping Dinosaur Egg (blacklisted):", eggName)
+                continue
+            end
+            
+            -- Attempt to hatch the egg
+            local success = hatchEgg(eggObject)
+            if success then
+                hatchedCount = hatchedCount + 1
+                task.wait(0.5) -- Small delay between hatches
+            end
+        end
+    end
+    
+    if hatchedCount > 0 then
+        print("🥚 Auto hatched", hatchedCount, "eggs")
+    end
+end
+
+-- Auto Hatch toggle
+AutoHatchGroupBox:AddToggle("AutoHatch", {
+    Text = "Auto Hatch",
+    Tooltip = "Automatically hatch ready eggs on your farm",
+    Default = false,
+    Callback = function(Value)
+        AutoHatchEnabled = Value
+        print("[cb] Auto Hatch toggled:", Value)
+        
+        if Value then
+            Library:Notify("🥚 Auto Hatch enabled!", 3)
+            
+            -- Start auto hatch loop
+            autoHatchConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoHatch()
+            end)
+        else
+            Library:Notify("🥚 Auto Hatch disabled!", 3)
+            
+            -- Stop auto hatch loop
+            if autoHatchConnection then
+                autoHatchConnection:Disconnect()
+                autoHatchConnection = nil
+            end
+        end
+    end,
+})
+
+-- Blacklist Dino Eggs toggle
+AutoHatchGroupBox:AddToggle("BlacklistDinoEggs", {
+    Text = "Blacklist Dino Eggs from Auto Hatch",
+    Tooltip = "Skip dinosaur eggs when auto hatching",
+    Default = false,
+    Callback = function(Value)
+        BlacklistDinoEggs = Value
+        print("[cb] Blacklist Dino Eggs toggled:", Value)
+        
+        if Value then
+            Library:Notify("🦕 Dinosaur eggs will be skipped during auto hatch", 3)
+        else
+            Library:Notify("🥚 All eggs will be auto hatched (including dinosaur eggs)", 3)
+        end
+    end,
+})
+
+AutoHatchGroupBox:AddDivider()
+
+-- Manual hatch button for testing
+AutoHatchGroupBox:AddButton("🥚 Hatch Ready Eggs Now", function()
+    performAutoHatch()
 end)
 
--- Event Status GroupBox
-local EventStatusGroupBox = EventTab:AddRightGroupbox("Event Status")
-
-EventStatusGroupBox:AddLabel("📅 Current Events:")
-EventStatusGroupBox:AddLabel("• No active events detected")
-EventStatusGroupBox:AddLabel("")
-EventStatusGroupBox:AddLabel("🔔 Event Notifications:")
-EventStatusGroupBox:AddLabel("• System ready for alerts")
-
-EventStatusGroupBox:AddDivider()
-
-EventStatusGroupBox:AddButton("🔄 Refresh Event Status", function()
-    Library:Notify("🔄 Checking for active events...", 2)
-    -- Future: Add event detection logic here
-    task.wait(1)
-    Library:Notify("📅 Event status updated!", 2)
+-- Show eggs status button
+AutoHatchGroupBox:AddButton("📊 Show Eggs Status", function()
+    local playerEggs = getPlayerEggs()
+    local readyCount = 0
+    local totalCount = #playerEggs
+    
+    print("=== EGG STATUS REPORT ===")
+    for _, eggObject in pairs(playerEggs) do
+        local eggName = eggObject:GetAttribute("EggName") or "Unknown"
+        local ready = isEggReady(eggObject)
+        local timeToHatch = eggObject:GetAttribute("TimeToHatch") or 0
+        
+        if ready then
+            readyCount = readyCount + 1
+            print("✅ READY:", eggName)
+        else
+            print("⏳ Growing:", eggName, "- Time left:", timeToHatch, "seconds")
+        end
+    end
+    
+    print("=== SUMMARY ===")
+    print("Total eggs:", totalCount)
+    print("Ready to hatch:", readyCount)
+    
+    Library:Notify("📊 Found " .. totalCount .. " eggs, " .. readyCount .. " ready to hatch", 4)
 end)
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
-print("🎉 Event Tab initialized successfully!")
-Library:Notify("🎉 Event Tab loaded! Ready for future events.", 3)
+print("🎉 Event Tab with AutoHatch initialized successfully!")
+Library:Notify("🥚 AutoHatch Event Tab loaded!", 3)
 
 -- Return success indicator
 return true
