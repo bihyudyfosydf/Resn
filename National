@@ -263,6 +263,15 @@ local function claimMachineReward()
     return success
 end
 
+-- Main auto claim function
+local function performAutoClaim()
+    if not AutoClaimEnabled then return end
+    
+    if isMachineRewardReady() then
+        claimMachineReward()
+    end
+end
+
 -- Auto Claim toggle
 DinoMachineGroupBox:AddToggle("AutoClaim", {
     Text = "Auto Claim",
@@ -302,11 +311,92 @@ local SelectedPets = {}
 local equippedPets = {}
 local dinoConnection = nil
 
--- Common Egg pets (from PetEggs.module.lua)
-local CommonEggPets = {
+-- All available pets (excluding dinosaur pets)
+local AllAvailablePets = {
+    -- Common Pets
     "Dog",
     "Golden Lab", 
-    "Bunny"
+    "Bunny",
+    
+    -- Uncommon Pets
+    "Black Bunny",
+    "Cat",
+    "Deer",
+    "Chicken",
+    "Bee",
+    "Wasp",
+    
+    -- Rare Pets
+    "Orange Tabby",
+    "Spotted Deer",
+    "Rooster",
+    "Monkey",
+    "Pig",
+    "Honey Bee",
+    
+    -- Legendary Pets
+    "Silver Monkey",
+    "Turtle",
+    "Cow",
+    "Sea Otter",
+    "Polar Bear",
+    "Caterpillar",
+    "Snail",
+    "Giant Ant",
+    "Petal Bee",
+    "Kiwi",
+    "Mole",
+    "Frog",
+    "Echo Frog",
+    "Hedgehog",
+    "Night Owl",
+    "Raccoon",
+    "Praying Mantis",
+    "Dragonfly",
+    "Blood Hedgehog",
+    "Blood Kiwi",
+    "Moon Cat",
+    "Ostrich",
+    "Scarlet Macaw",
+    "Meerkat",
+    "Sand Snake",
+    "Bald Eagle",
+    
+    -- Mythical Pets
+    "Grey Mouse",
+    "Brown Mouse",
+    "Squirrel",
+    "Red Giant Ant",
+    "Red Fox",
+    "Chicken Zombie",
+    "Bear Bee",
+    "Axolotl",
+    "Hyacinth Macaw",
+    "Hamster",
+    "Mimic Octopus",
+    
+    -- Divine Pets
+    "Queen Bee",
+    "Blood Owl",
+    "Fennec Fox",
+    
+    -- Summer Pets
+    "Starfish",
+    "Crab",
+    "Seagull",
+    "Flamingo",
+    "Toucan",
+    "Sea Turtle",
+    "Orangutan",
+    "Seal",
+    "Peacock",
+    "Capybara",
+    
+    -- Anti-Bee Pets
+    "Tarantula Hawk",
+    "Moth",
+    "Butterfly",
+    "Disco Bee"
 }
 
 -- Function to find a pet tool by name pattern
@@ -363,6 +453,99 @@ local function unequipPet(petName)
     end
 end
 
+-- Function to check if dino machine is available for interaction
+local function isDinoMachineAvailable()
+    local machineData = getDinoMachineData()
+    if not machineData then
+        return false
+    end
+    
+    -- Machine is available if it's not running and not ready (idle state)
+    return not machineData.IsRunning and not machineData.RewardReady
+end
+
+-- Function to interact with dino machine
+local function interactWithDinoMachine()
+    local success, err = pcall(function()
+        local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("DinoMachineService_RE")
+        
+        if DinoMachineService_RE then
+            DinoMachineService_RE:FireServer("MachineInteract")
+            print("🦕 Interacted with dino machine!")
+            Library:Notify("🦕 Dino machine interaction sent!", 2)
+            return true
+        else
+            print("❌ DinoMachineService_RE not found!")
+            return false
+        end
+    end)
+    
+    if not success then
+        print("❌ Failed to interact with dino machine:", err)
+        return false
+    end
+    
+    return success
+end
+
+-- Function to wait for dino machine to be ready and then interact
+local function waitForDinoMachineAndInteract()
+    -- First check if machine is available
+    if isDinoMachineAvailable() then
+        interactWithDinoMachine()
+        return
+    end
+    
+    -- If not available, wait for it to become available
+    local machineData = getDinoMachineData()
+    if not machineData then
+        print("❌ Cannot get dino machine data")
+        return
+    end
+    
+    if machineData.IsRunning then
+        print("🦕 Dino machine is running, waiting for completion...")
+        Library:Notify("🦕 Waiting for dino machine to finish...", 3)
+        
+        -- Wait for machine to stop running
+        while true do
+            task.wait(1)
+            local currentData = getDinoMachineData()
+            if currentData and not currentData.IsRunning then
+                break
+            end
+        end
+        
+        -- After machine stops, wait a bit more and check if it's ready for new input
+        task.wait(2)
+        local finalData = getDinoMachineData()
+        if finalData and isDinoMachineAvailable() then
+            interactWithDinoMachine()
+        else
+            print("🦕 Machine finished but not available for new input")
+        end
+        
+    elseif machineData.RewardReady then
+        print("🦕 Dino machine has reward ready, waiting for claim...")
+        Library:Notify("🦕 Waiting for reward to be claimed...", 3)
+        
+        -- Wait for reward to be claimed
+        while true do
+            task.wait(1)
+            local currentData = getDinoMachineData()
+            if currentData and not currentData.RewardReady then
+                break
+            end
+        end
+        
+        -- After reward is claimed, try to interact
+        task.wait(2)
+        if isDinoMachineAvailable() then
+            interactWithDinoMachine()
+        end
+    end
+end
+
 -- Function to manage pet equipping based on selection
 local function managePetEquipping()
     if not DinoEquipEnabled then return end
@@ -371,6 +554,8 @@ local function managePetEquipping()
     local backpack = player:WaitForChild("Backpack")
     local character = player.Character or player.CharacterAdded:Wait()
     
+    local hadEquipChange = false
+    
     -- Check each selected pet
     for petName, isSelected in pairs(SelectedPets) do
         if isSelected then
@@ -378,25 +563,34 @@ local function managePetEquipping()
             local petInChar = findPetTool(character, petName)
             if not petInChar then
                 -- Pet not equipped, try to equip it
-                equipPet(petName)
+                if equipPet(petName) then
+                    hadEquipChange = true
+                end
             end
         else
             -- Pet should be unequipped
             local petInChar = findPetTool(character, petName)
             if petInChar then
                 -- Pet is equipped, unequip it
-                unequipPet(petName)
+                if unequipPet(petName) then
+                    hadEquipChange = true
+                end
             end
         end
+    end
+    
+    -- If we had any equipment changes, interact with dino machine
+    if hadEquipChange then
+        task.spawn(waitForDinoMachineAndInteract)
     end
 end
 
 -- Multi-select dropdown for pets
 DinoGroupBox:AddDropdown("DinoSelectedPets", {
     Text = "Select Pets to Equip",
-    Tooltip = "Choose which pets from Common Egg to auto-equip",
+    Tooltip = "Choose which pets to auto-equip (excludes dinosaur pets)",
     Multi = true,
-    Values = CommonEggPets,
+    Values = AllAvailablePets,
     Default = {},
     Callback = function(Value)
         SelectedPets = Value
