@@ -8,7 +8,25 @@ local function waitForMainScript()
     local maxWait = 30 -- Maximum 30 seconds
     local waited = 0
     
-    while wai-- Helper function to get current pet selection from dropdown
+    while waited < maxWait do
+        if (_G.Library and _G.Window and _G.Tabs) or (getgenv and getgenv().Library and getgenv().Window and getgenv().Tabs) then
+            -- Found the required globals, return them
+            local Library = _G.Library or getgenv().Library
+            local Window = _G.Window or getgenv().Window
+            local Tabs = _G.Tabs or getgenv().Tabs
+            
+            print("✅ Event Tab: Found main script globals after", waited, "seconds")
+            return Library, Window, Tabs
+        end
+        
+        task.wait(0.5)
+        waited = waited + 0.5
+    end
+    
+    error("❌ Event Tab: Timeout waiting for main script to load (waited " .. maxWait .. " seconds)")
+end
+
+-- Helper function to get current pet selection from dropdown
 local function getCurrentPetSelection()
     local currentSelection = {}
     
