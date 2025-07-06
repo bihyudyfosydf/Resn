@@ -194,39 +194,132 @@ AutoHatchGroupBox:AddToggle("BlacklistDinoEggs", {
     end,
 })
 
-AutoHatchGroupBox:AddDivider()
+-- ================================================================
+-- DINO MACHINE SYSTEM
+-- ================================================================
+local DinoMachineGroupBox = EventTab:AddRightGroupbox("Dino Machine 🦕")
 
--- Manual hatch button for testing
-AutoHatchGroupBox:AddButton("🥚 Hatch Ready Eggs Now", function()
-    performAutoHatch()
-end)
+-- Variables for Dino Machine system
+local AutoClaimEnabled = false
+local AutoGiveEnabled = false
+local autoClaimConnection = nil
 
--- Show eggs status button
-AutoHatchGroupBox:AddButton("📊 Show Eggs Status", function()
-    local playerEggs = getPlayerEggs()
-    local readyCount = 0
-    local totalCount = #playerEggs
-    
-    print("=== EGG STATUS REPORT ===")
-    for _, eggObject in pairs(playerEggs) do
-        local eggName = eggObject:GetAttribute("EggName") or "Unknown"
-        local ready = isEggReady(eggObject)
-        local timeToHatch = eggObject:GetAttribute("TimeToHatch") or 0
+-- Function to get dino machine data
+local function getDinoMachineData()
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
         
-        if ready then
-            readyCount = readyCount + 1
-            print("✅ READY:", eggName)
-        else
-            print("⏳ Growing:", eggName, "- Time left:", timeToHatch, "seconds")
+        if not data then
+            return nil
         end
+        
+        if not data.DinoMachine then
+            return nil
+        end
+        
+        return data.DinoMachine
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Failed to get dino machine data:", result)
+        return nil
+    end
+end
+
+-- Function to check if machine reward is ready
+local function isMachineRewardReady()
+    local machineData = getDinoMachineData()
+    if not machineData then
+        return false
     end
     
-    print("=== SUMMARY ===")
-    print("Total eggs:", totalCount)
-    print("Ready to hatch:", readyCount)
+    -- Machine is ready if RewardReady is true and TimeLeft is 0 or less
+    return machineData.RewardReady == true and (machineData.TimeLeft or 0) <= 0
+end
+
+-- Function to claim machine reward
+local function claimMachineReward()
+    local success, err = pcall(function()
+        local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("DinoMachineService_RE")
+        
+        if DinoMachineService_RE then
+            DinoMachineService_RE:FireServer("ClaimReward")
+            print("🎁 Claimed dino machine reward!")
+            Library:Notify("🎁 Claimed dino machine reward!", 2)
+            return true
+        else
+            print("❌ DinoMachineService_RE not found!")
+            return false
+        end
+    end)
     
-    Library:Notify("📊 Found " .. totalCount .. " eggs, " .. readyCount .. " ready to hatch", 4)
-end)
+    if not success then
+        print("❌ Failed to claim dino machine reward:", err)
+        return false
+    end
+    
+    return success
+end
+
+-- Main auto claim function
+local function performAutoClaim()
+    if not AutoClaimEnabled then return end
+    
+    if isMachineRewardReady() then
+        claimMachineReward()
+    end
+end
+
+-- Auto Give toggle (placeholder)
+DinoMachineGroupBox:AddToggle("AutoGive", {
+    Text = "Auto Give",
+    Tooltip = "Automatically give pets to dino machine (coming soon)",
+    Default = false,
+    Callback = function(Value)
+        AutoGiveEnabled = Value
+        print("[cb] Auto Give toggled:", Value)
+        
+        if Value then
+            Library:Notify("🔄 Auto Give feature coming soon!", 3)
+            -- Disable the toggle for now since it's not implemented
+            task.wait(0.1)
+            if Toggles and Toggles.AutoGive then
+                Toggles.AutoGive:SetValue(false)
+            end
+        end
+    end,
+})
+
+-- Auto Claim toggle
+DinoMachineGroupBox:AddToggle("AutoClaim", {
+    Text = "Auto Claim",
+    Tooltip = "Automatically claim rewards from dino machine when ready",
+    Default = false,
+    Callback = function(Value)
+        AutoClaimEnabled = Value
+        print("[cb] Auto Claim toggled:", Value)
+        
+        if Value then
+            Library:Notify("🎁 Auto Claim enabled!", 3)
+            
+            -- Start auto claim loop
+            autoClaimConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoClaim()
+            end)
+        else
+            Library:Notify("🎁 Auto Claim disabled!", 3)
+            
+            -- Stop auto claim loop
+            if autoClaimConnection then
+                autoClaimConnection:Disconnect()
+                autoClaimConnection = nil
+            end
+        end
+    end,
+})
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
