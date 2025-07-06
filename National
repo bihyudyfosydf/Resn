@@ -64,7 +64,7 @@ local CommonEggPets = {
     "Bunny"
 }
 
--- Function to get pets from inventory by type
+-- Function to get pets from inventory by type (flexible name matching)
 local function getPetsFromInventory(petType)
     local foundPets = {}
     
@@ -80,12 +80,16 @@ local function getPetsFromInventory(petType)
         if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
             local petInventory = data.PetsData.PetInventory.Data
             for petUUID, petData in pairs(petInventory) do
-                if petData and petData.PetType and petData.PetType == petType then
-                    table.insert(foundPets, {
-                        uuid = petUUID,
-                        petType = petData.PetType,
-                        petData = petData
-                    })
+                if petData and petData.PetType then
+                    -- Check if the selected pet name is contained in the actual pet name
+                    -- This handles cases like "Dog [1.17 KG] [Age 1]" matching "Dog"
+                    if string.find(petData.PetType, petType) then
+                        table.insert(foundPets, {
+                            uuid = petUUID,
+                            petType = petData.PetType,
+                            petData = petData
+                        })
+                    end
                 end
             end
         end
@@ -101,36 +105,28 @@ local function getPetsFromInventory(petType)
     end
 end
 
--- Function to equip a pet
+-- Function to equip a pet (simplified)
 local function equipPet(petUUID)
     local success, err = pcall(function()
-        -- Try to get PetServices module like in REfactorMain
-        local PetServices = Services.ReplicatedStorage.Modules:FindFirstChild("PetServices")
-        if not PetServices then
-            print("❌ PetServices module not found!")
+        -- Direct remote event call - simple and effective
+        local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        
+        if PetsService then
+            PetsService:FireServer("EquipPet", petUUID, 1)
+            return true
+        else
             return false
         end
-        
-        local PetsService = require(PetServices:FindFirstChild("PetsService"))
-        if not PetsService then
-            print("❌ PetsService module not found!")
-            return false
-        end
-        
-        -- Use the PetsService module's EquipPet function
-        PetsService:EquipPet(petUUID, 1) -- Slot 1
+    end)
+    
+    if success then
         print("🐾 Equipped pet:", petUUID)
         Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
         return true
-    end)
-    
-    if not success then
+    else
         print("❌ Failed to equip pet:", err)
-        Library:Notify("❌ Failed to equip pet: " .. tostring(err), 3)
         return false
     end
-    
-    return success
 end
 
 -- Function to perform auto equip for selected pets
