@@ -203,6 +203,8 @@ local DinoMachineGroupBox = EventTab:AddRightGroupbox("Dino Machine 🦕")
 local AutoClaimEnabled = false
 local AutoGiveEnabled = false
 local autoClaimConnection = nil
+local autoGiveConnection = nil
+local autoGiveConnection = nil
 
 -- Function to get dino machine data
 local function getDinoMachineData()
@@ -273,21 +275,146 @@ local function performAutoClaim()
     end
 end
 
--- Auto Give toggle (placeholder)
+-- Common Egg pets list (extracted from PetEggs.module.lua)
+local CommonEggPets = {
+    "Dog",
+    "Golden Lab", 
+    "Bunny"
+}
+
+-- Variables for Auto Give system
+local SelectedPetToGive = "Dog" -- Default selection
+local autoGiveConnection = nil
+
+-- Add dropdown for pet selection
+DinoMachineGroupBox:AddDropdown("PetSelection", {
+    Values = CommonEggPets,
+    Default = 1,
+    Multi = false,
+    Text = "Select Pet to Give",
+    Tooltip = "Choose which Common Egg pet to automatically give to dino machine",
+    Callback = function(Value)
+        SelectedPetToGive = Value
+        print("[cb] Selected pet to give:", Value)
+    end,
+})
+
+-- Function to check if dino machine is empty (ready to accept pets)
+local function isMachineEmpty()
+    local machineData = getDinoMachineData()
+    if not machineData then
+        return false
+    end
+    
+    -- Machine is empty if it's not running and reward is not ready
+    return not machineData.IsRunning and not machineData.RewardReady
+end
+
+-- Function to find player's pets by type
+local function findPlayerPetsByType(petType)
+    local foundPets = {}
+    
+    local success, result = pcall(function()
+        -- Method 1: Use ActivePetsService to get pet inventory
+        local ActivePetsService = require(Services.ReplicatedStorage.Modules.PetServices.ActivePetsService)
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        
+        local data = DataService:GetData()
+        if not data or not data.PetsData or not data.PetsData.PetInventory then
+            return {}
+        end
+        
+        local petInventory = data.PetsData.PetInventory.Data
+        for petUUID, petData in pairs(petInventory) do
+            if petData.PetType == petType then
+                table.insert(foundPets, {
+                    uuid = petUUID,
+                    petType = petData.PetType,
+                    petData = petData
+                })
+            end
+        end
+        
+        return foundPets
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Failed to get pets from inventory:", result)
+        return {}
+    end
+end
+
+-- Function to give pet to dino machine
+local function givePetToMachine(petUUID)
+    local success, err = pcall(function()
+        local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("DinoMachineService_RE")
+        
+        if DinoMachineService_RE then
+            DinoMachineService_RE:FireServer("MachineInteract", petUUID)
+            print("🦕 Gave pet to dino machine:", petUUID)
+            Library:Notify("🦕 Gave pet to dino machine!", 2)
+            return true
+        else
+            print("❌ DinoMachineService_RE not found!")
+            return false
+        end
+    end)
+    
+    if not success then
+        print("❌ Failed to give pet to dino machine:", err)
+        return false
+    end
+    
+    return success
+end
+
+-- Main auto give function
+local function performAutoGive()
+    if not AutoGiveEnabled then return end
+    
+    -- Only give pets when machine is empty
+    if not isMachineEmpty() then
+        return
+    end
+    
+    -- Find pets of the selected type
+    local availablePets = findPlayerPetsByType(SelectedPetToGive)
+    
+    if #availablePets > 0 then
+        -- Give the first available pet
+        local petToGive = availablePets[1]
+        givePetToMachine(petToGive.uuid)
+        
+        -- Add delay to prevent spam
+        task.wait(2)
+    end
+end
+
+-- Auto Give toggle
 DinoMachineGroupBox:AddToggle("AutoGive", {
     Text = "Auto Give",
-    Tooltip = "Automatically give pets to dino machine (coming soon)",
+    Tooltip = "Automatically give selected pets to dino machine when empty",
     Default = false,
     Callback = function(Value)
         AutoGiveEnabled = Value
         print("[cb] Auto Give toggled:", Value)
         
         if Value then
-            Library:Notify("🔄 Auto Give feature coming soon!", 3)
-            -- Disable the toggle for now since it's not implemented
-            task.wait(0.1)
-            if Toggles and Toggles.AutoGive then
-                Toggles.AutoGive:SetValue(false)
+            Library:Notify("🔄 Auto Give enabled for " .. SelectedPetToGive .. " pets!", 3)
+            
+            -- Start auto give loop
+            autoGiveConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoGive()
+            end)
+        else
+            Library:Notify("🔄 Auto Give disabled!", 3)
+            
+            -- Stop auto give loop
+            if autoGiveConnection then
+                autoGiveConnection:Disconnect()
+                autoGiveConnection = nil
             end
         end
     end,
