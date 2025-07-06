@@ -201,9 +201,7 @@ local DinoMachineGroupBox = EventTab:AddRightGroupbox("Dino Machine 🦕")
 
 -- Variables for Dino Machine system
 local AutoClaimEnabled = false
-local AutoGiveEnabled = false
 local autoClaimConnection = nil
-local autoGiveConnection = nil
 
 -- Function to get dino machine data
 local function getDinoMachineData()
@@ -274,303 +272,25 @@ local function performAutoClaim()
     end
 end
 
--- Common Egg pets list (extracted from PetEggs.module.lua)
-local CommonEggPets = {
-    "Dog",
-    "Golden Lab", 
-    "Bunny"
-}
+-- ================================================================
+-- AUTO GIVE PETS SYSTEM
+-- ================================================================
 
--- Rare Egg pets list (extracted from PetEggs.module.lua)
-local RareEggPets = {
-    "Orange Tabby",
-    "Monkey",
-    "Spotted Deer", 
-    "Rooster",
-    "Pig"
+-- Complete list of all pets from PetRegistry.PetList
+local AllPets = {
+    "Dog", "Golden Lab", "Bunny", "Black Bunny", "Cat", "Deer", "Chicken", 
+    "Orange Tabby", "Spotted Deer", "Rooster", "Monkey", "Pig", "Silver Monkey",
+    "Turtle", "Cow", "Sea Otter", "Polar Bear", "Caterpillar", "Snail", 
+    "Giant Ant", "Praying Mantis", "Dragonfly", "Panda", "Hedgehog", "Kiwi", 
+    "Mole", "Frog", "Echo Frog", "Raccoon", "Night Owl", "Owl", "Grey Mouse", 
+    "Squirrel", "Brown Mouse", "Red Giant Ant", "Red Fox", "Chicken Zombie", 
+    "Blood Hedgehog", "Blood Kiwi", "Blood Owl", "Moon Cat", "Honey Bee"
 }
 
 -- Variables for Auto Give system
-local SelectedCommonPets = {"Dog"} -- Default Common pets selection (multi-select)
-local SelectedRarePets = {"Orange Tabby"} -- Default Rare pets selection (multi-select)
+local AutoGiveEnabled = false
+local SelectedPetsToGive = {"Dog"} -- Default selection
 local autoGiveConnection = nil
-local UseCommonEggs = true -- Default enabled
-local UseRareEggs = false -- Default disabled
-
--- Function to get the currently selected pets based on enabled filters
-local function getCurrentSelectedPets()
-    local selectedPets = {}
-    
-    if UseCommonEggs and #SelectedCommonPets > 0 then
-        for _, pet in pairs(SelectedCommonPets) do
-            table.insert(selectedPets, pet)
-        end
-    end
-    
-    if UseRareEggs and #SelectedRarePets > 0 then
-        for _, pet in pairs(SelectedRarePets) do
-            table.insert(selectedPets, pet)
-        end
-    end
-    
-    return selectedPets
-end
-
--- Function to check which selected pets are actually available in inventory
-local function getAvailableSelectedPets()
-    local availablePets = {}
-    local missingPets = {}
-    
-    -- Check Common pets if enabled
-    if UseCommonEggs and #SelectedCommonPets > 0 then
-        for _, petType in pairs(SelectedCommonPets) do
-            local foundPets = findPlayerPetsByType(petType)
-            if #foundPets > 0 then
-                table.insert(availablePets, {
-                    petType = petType,
-                    eggType = "Common",
-                    count = #foundPets,
-                    pets = foundPets
-                })
-            else
-                table.insert(missingPets, petType .. " (Common)")
-            end
-        end
-    end
-    
-    -- Check Rare pets if enabled
-    if UseRareEggs and #SelectedRarePets > 0 then
-        for _, petType in pairs(SelectedRarePets) do
-            local foundPets = findPlayerPetsByType(petType)
-            if #foundPets > 0 then
-                table.insert(availablePets, {
-                    petType = petType,
-                    eggType = "Rare",
-                    count = #foundPets,
-                    pets = foundPets
-                })
-            else
-                table.insert(missingPets, petType .. " (Rare)")
-            end
-        end
-    end
-    
-    return availablePets, missingPets
-end
-
--- Add dropdown for Common Egg pet selection
-DinoMachineGroupBox:AddDropdown("CommonPetSelection", {
-    Values = CommonEggPets,
-    Default = {1},
-    Multi = true,
-    Text = "Select Common Egg Pets",
-    Tooltip = "Choose which Common Egg pets to automatically give to dino machine (multi-select)",
-    Callback = function(Value)
-        SelectedCommonPets = {}
-        for _, v in pairs(Value) do
-            table.insert(SelectedCommonPets, CommonEggPets[v])
-        end
-        print("[cb] Selected Common pets to give:", table.concat(SelectedCommonPets, ", "))
-        
-        -- Check inventory for newly selected pets
-        if #SelectedCommonPets > 0 then
-            local availableCount = 0
-            local totalSelected = #SelectedCommonPets
-            
-            for _, petType in pairs(SelectedCommonPets) do
-                local foundPets = findPlayerPetsByType(petType)
-                if #foundPets > 0 then
-                    availableCount = availableCount + 1
-                end
-            end
-            
-            if availableCount == totalSelected then
-                Library:Notify("✅ All selected Common pets available! (" .. availableCount .. "/" .. totalSelected .. ")", 2)
-            else
-                Library:Notify("⚠️ Only " .. availableCount .. "/" .. totalSelected .. " Common pets available in inventory", 3)
-            end
-        end
-    end,
-})
-
--- Add dropdown for Rare Egg pet selection
-DinoMachineGroupBox:AddDropdown("RarePetSelection", {
-    Values = RareEggPets,
-    Default = {1},
-    Multi = true,
-    Text = "Select Rare Egg Pets",
-    Tooltip = "Choose which Rare Egg pets to automatically give to dino machine (multi-select)",
-    Callback = function(Value)
-        SelectedRarePets = {}
-        for _, v in pairs(Value) do
-            table.insert(SelectedRarePets, RareEggPets[v])
-        end
-        print("[cb] Selected Rare pets to give:", table.concat(SelectedRarePets, ", "))
-        
-        -- Check inventory for newly selected pets
-        if #SelectedRarePets > 0 then
-            local availableCount = 0
-            local totalSelected = #SelectedRarePets
-            
-            for _, petType in pairs(SelectedRarePets) do
-                local foundPets = findPlayerPetsByType(petType)
-                if #foundPets > 0 then
-                    availableCount = availableCount + 1
-                end
-            end
-            
-            if availableCount == totalSelected then
-                Library:Notify("✅ All selected Rare pets available! (" .. availableCount .. "/" .. totalSelected .. ")", 2)
-            else
-                Library:Notify("⚠️ Only " .. availableCount .. "/" .. totalSelected .. " Rare pets available in inventory", 3)
-            end
-        end
-    end,
-})
-
-DinoMachineGroupBox:AddDivider()
-
--- Add inventory check button
-DinoMachineGroupBox:AddButton("Check Pet Inventory", function()
-    print("🔍 === ENHANCED PET INVENTORY CHECK ===")
-    
-    -- Test the enhanced findPlayerPetsByType function
-    print("Testing search for 'Dog' pets:")
-    local dogPets = findPlayerPetsByType("Dog")
-    print("Dog pets found:", #dogPets)
-    
-    print("\nTesting search for 'Bunny' pets:")
-    local bunnyPets = findPlayerPetsByType("Bunny")
-    print("Bunny pets found:", #bunnyPets)
-    
-    -- Now check the full selected pets function
-    print("\n=== CHECKING SELECTED PETS ===")
-    local availablePets, missingPets = getAvailableSelectedPets()
-    
-    if #availablePets > 0 then
-        local inventoryText = "📦 Available Selected Pets:\n"
-        for _, petInfo in pairs(availablePets) do
-            inventoryText = inventoryText .. "• " .. petInfo.petType .. " (" .. petInfo.count .. " " .. petInfo.eggType .. ")\n"
-        end
-        
-        if #missingPets > 0 then
-            inventoryText = inventoryText .. "\n❌ Missing Selected Pets:\n"
-            for _, missingPet in pairs(missingPets) do
-                inventoryText = inventoryText .. "• " .. missingPet .. "\n"
-            end
-        end
-        
-        print(inventoryText)
-        Library:Notify("📦 Check console for detailed inventory info", 4)
-    else
-        local message = "❌ No selected pets found in inventory!"
-        if #missingPets > 0 then
-            message = message .. "\nMissing: " .. table.concat(missingPets, ", ")
-        end
-        print(message)
-        Library:Notify(message, 4)
-    end
-    
-    print("=== END INVENTORY CHECK ===")
-end)
-
--- Add debug button to inspect data structure
-DinoMachineGroupBox:AddButton("Debug Pet Data", function()
-    local success, result = pcall(function()
-        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
-        local data = DataService:GetData()
-        
-        print("🔍 DEBUG: Player data structure:")
-        if data then
-            print("✅ Player data exists")
-            
-            -- Check pet storage location
-            if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
-                print("✅ PetInventory.Data exists")
-                local count = 0
-                local dogFound = false
-                local bunnyFound = false
-                
-                for uuid, petData in pairs(data.PetsData.PetInventory.Data) do
-                    count = count + 1
-                    if count <= 5 then -- Show first 5 pets
-                        print("🐾 Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
-                    end
-                    
-                    -- Check for our target pets
-                    if petData.PetType == "Dog" then
-                        dogFound = true
-                    elseif petData.PetType == "Bunny" then
-                        bunnyFound = true
-                    end
-                end
-                
-                print("📦 Total pets in PetInventory.Data:", count)
-                print("🐕 Dog found:", dogFound and "YES" or "NO")
-                print("� Bunny found:", bunnyFound and "YES" or "NO")
-                
-                if count > 5 then
-                    print("... and", count - 5, "more pets")
-                end
-            else
-                print("❌ PetInventory.Data not accessible")
-            end
-        else
-            print("❌ No player data found!")
-        end
-        
-        Library:Notify("🔍 Debug info printed to console", 3)
-    end)
-    
-    if not success then
-        print("❌ Debug failed:", result)
-        Library:Notify("❌ Debug failed! Check console", 3)
-    end
-end)
-
--- Add toggles for egg type filters
-DinoMachineGroupBox:AddToggle("UseCommonEggs", {
-    Text = "Use Common Egg Pets",
-    Tooltip = "Enable auto giving of selected Common Egg pet",
-    Default = true,
-    Callback = function(Value)
-        UseCommonEggs = Value
-        print("[cb] Use Common Eggs toggled:", Value)
-        
-        if Value then
-            Library:Notify("✅ Common Egg pets enabled: " .. table.concat(SelectedCommonPets, ", "), 2)
-        else
-            Library:Notify("❌ Common Egg pets disabled", 2)
-        end
-    end,
-})
-
-DinoMachineGroupBox:AddToggle("UseRareEggs", {
-    Text = "Use Rare Egg Pets", 
-    Tooltip = "Enable auto giving of selected Rare Egg pet",
-    Default = false,
-    Callback = function(Value)
-        UseRareEggs = Value
-        print("[cb] Use Rare Eggs toggled:", Value)
-        
-        if Value then
-            Library:Notify("✅ Rare Egg pets enabled: " .. table.concat(SelectedRarePets, ", "), 2)
-        else
-            Library:Notify("❌ Rare Egg pets disabled", 2)
-        end
-    end,
-})
-
--- Function to check if dino machine is empty (ready to accept pets)
-local function isMachineEmpty()
-    local machineData = getDinoMachineData()
-    if not machineData then
-        return false
-    end
-    
-    -- Machine is empty if it's not running and reward is not ready
-    return not machineData.IsRunning and not machineData.RewardReady
-end
 
 -- Function to find player's pets by type
 local function findPlayerPetsByType(petType)
@@ -581,51 +301,22 @@ local function findPlayerPetsByType(petType)
         local data = DataService:GetData()
         
         if not data then
-            print("❌ DEBUG: No player data available")
             return {}
         end
         
-        -- Direct search in PetsData.PetInventory.Data where we know pets exist
+        -- Search in PetsData.PetInventory.Data
         if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
             local petInventory = data.PetsData.PetInventory.Data
             
-            -- Count total pets properly
-            local totalPetCount = 0
-            for _ in pairs(petInventory) do
-                totalPetCount = totalPetCount + 1
-            end
-            
-            print("🔍 DEBUG: Searching for petType:", petType, "in inventory with", totalPetCount, "pets")
-            
-            local searchCount = 0
             for petUUID, petData in pairs(petInventory) do
-                searchCount = searchCount + 1
-                if petData and petData.PetType then
-                    -- Debug: Show each pet type we're checking
-                    if searchCount <= 3 then -- Only show first 3 for brevity
-                        print("   🐾 Checking pet", searchCount .. ":", petData.PetType, "vs target:", petType)
-                    end
-                    
-                    -- SIMPLIFIED: Check if pet name CONTAINS the target type (case-insensitive)
-                    local petTypeLower = string.lower(petData.PetType)
-                    local targetTypeLower = string.lower(petType)
-                    
-                    if string.find(petTypeLower, targetTypeLower) then
-                        print("✅ DEBUG: Found matching pet! Target:", petType, "Actual:", petData.PetType, "UUID:", petUUID)
-                        table.insert(foundPets, {
-                            uuid = petUUID,
-                            petType = petData.PetType,
-                            petData = petData
-                        })
-                    end
-                else
-                    print("⚠️ DEBUG: Pet data incomplete for UUID:", petUUID)
+                if petData and petData.PetType and petData.PetType == petType then
+                    table.insert(foundPets, {
+                        uuid = petUUID,
+                        petType = petData.PetType,
+                        petData = petData
+                    })
                 end
             end
-            
-            print("🔍 DEBUG: Search complete. Found", #foundPets, "pets of type:", petType)
-        else
-            print("❌ DEBUG: PetInventory.Data not accessible")
         end
         
         return foundPets
@@ -639,41 +330,16 @@ local function findPlayerPetsByType(petType)
     end
 end
 
--- Function to get Pet Services (like REfactoreMian)
-local function getPetServices()
-    local success, result = pcall(function()
-        if Services.ReplicatedStorage:FindFirstChild("Modules") and Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
-            local PetServices = Services.ReplicatedStorage.Modules.PetServices
-            local ActivePetsService = require(PetServices:FindFirstChild("ActivePetsService"))
-            local PetsService = require(PetServices:FindFirstChild("PetsService"))
-            return {
-                ActivePetsService = ActivePetsService,
-                PetsService = PetsService,
-            }
-        end
-        return nil
-    end)
-    if success then
-        return result
-    else
-        return nil
-    end
-end
-
--- Function to equip a pet (fixed to use proper PetsService module)
+-- Function to equip a pet
 local function equipPet(petUUID)
     local success, err = pcall(function()
-        local petServices = getPetServices()
-        
-        if petServices and petServices.PetsService then
-            -- Use the PetsService module's EquipPet method
-            -- Based on the module signature: EquipPet(arg1, arg2, arg3)
-            -- arg1 = self, arg2 = petUUID, arg3 = unknown (try nil or empty)
-            petServices.PetsService:EquipPet(petUUID, nil)
+        local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        if PetsService then
+            PetsService:FireServer("EquipPet", petUUID)
             print("🎒 Equipped pet:", petUUID)
             return true
         else
-            print("❌ PetsService module not found!")
+            print("❌ PetsService not found!")
             return false
         end
     end)
@@ -686,14 +352,14 @@ local function equipPet(petUUID)
     return success
 end
 
--- Function to give pet to dino machine
-local function givePetToMachine(petUUID)
+-- Function to give pet to dino machine (using the provided remote)
+local function givePetToMachine()
     local success, err = pcall(function()
         local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("DinoMachineService_RE")
         
         if DinoMachineService_RE then
-            DinoMachineService_RE:FireServer("MachineInteract", petUUID)
-            print("🦕 Gave pet to dino machine:", petUUID)
+            DinoMachineService_RE:FireServer("MachineInteract")
+            print("🦕 Gave pet to dino machine!")
             return true
         else
             print("❌ DinoMachineService_RE not found!")
@@ -709,7 +375,39 @@ local function givePetToMachine(petUUID)
     return success
 end
 
--- Main auto equip and give function
+-- Function to check if dino machine is empty (ready to accept pets)
+local function isMachineEmpty()
+    local machineData = getDinoMachineData()
+    if not machineData then
+        return false
+    end
+    
+    -- Machine is empty if it's not running and reward is not ready
+    return not machineData.IsRunning and not machineData.RewardReady
+end
+
+-- Function to get available selected pets from inventory
+local function getAvailableSelectedPets()
+    local availablePets = {}
+    local missingPets = {}
+    
+    for _, petType in pairs(SelectedPetsToGive) do
+        local foundPets = findPlayerPetsByType(petType)
+        if #foundPets > 0 then
+            table.insert(availablePets, {
+                petType = petType,
+                count = #foundPets,
+                pets = foundPets
+            })
+        else
+            table.insert(missingPets, petType)
+        end
+    end
+    
+    return availablePets, missingPets
+end
+
+-- Main auto give function
 local function performAutoGive()
     if not AutoGiveEnabled then return end
     
@@ -721,47 +419,93 @@ local function performAutoGive()
     -- Get available pets from inventory
     local availablePets, missingPets = getAvailableSelectedPets()
     
-    -- Warn about missing pets (but don't spam)
-    if #missingPets > 0 then
-        print("⚠️ Selected pets not found in inventory:", table.concat(missingPets, ", "))
+    if #availablePets == 0 then
+        print("⚠️ No selected pets available in inventory!")
+        return
     end
     
-    -- Try to auto-equip and give available pets in order (Common first, then Rare)
+    -- Step 1: Equip ALL selected pets first
+    local equippedPets = {}
+    print("🎒 Equipping all selected pets...")
+    
     for _, petInfo in pairs(availablePets) do
-        if #petInfo.pets > 0 then
-            -- Give the first available pet of this type
-            local petToGive = petInfo.pets[1]
-            
-            -- First, try to equip the pet
-            print("🎒 Auto-equipping", petInfo.eggType, "pet:", petInfo.petType)
-            local equipSuccess = equipPet(petToGive.uuid)
+        for _, pet in pairs(petInfo.pets) do
+            print("🎒 Equipping pet:", petInfo.petType, "UUID:", pet.uuid)
+            local equipSuccess = equipPet(pet.uuid)
             
             if equipSuccess then
-                -- Wait a moment for equip to process
-                task.wait(1)
-                
-                -- Then give the pet to the machine
-                local giveSuccess = givePetToMachine(petToGive.uuid)
-                
-                if giveSuccess then
-                    print("🦕 Successfully auto-equipped and gave", petInfo.eggType, "pet:", petInfo.petType, "(" .. petInfo.count .. " available)")
-                    Library:Notify("🦕 Auto-equipped and gave " .. petInfo.petType .. " to dino machine!", 3)
-                    task.wait(2) -- Add delay to prevent spam
-                    return -- Exit after successfully giving one pet
-                else
-                    print("❌ Failed to give equipped pet to machine")
-                end
+                table.insert(equippedPets, {
+                    petType = petInfo.petType,
+                    uuid = pet.uuid
+                })
+                task.wait(0.5) -- Small delay between equips
             else
-                print("❌ Failed to equip pet, skipping...")
+                print("❌ Failed to equip pet:", petInfo.petType)
             end
         end
     end
     
-    -- If we reach here, no pets were available to give
-    if #availablePets == 0 then
-        print("⚠️ No selected pets available in inventory!")
+    -- Step 2: If we equipped any pets, run the MachineInteract remote
+    if #equippedPets > 0 then
+        print("🦕 Successfully equipped", #equippedPets, "pets. Running MachineInteract...")
+        
+        -- Wait a moment for all equips to process
+        task.wait(1)
+        
+        -- Run the MachineInteract remote
+        local giveSuccess = givePetToMachine()
+        
+        if giveSuccess then
+            local petNames = {}
+            for _, pet in pairs(equippedPets) do
+                table.insert(petNames, pet.petType)
+            end
+            
+            print("🦕 Successfully gave", #equippedPets, "pets to dino machine:", table.concat(petNames, ", "))
+            Library:Notify("🦕 Gave " .. #equippedPets .. " pets (" .. table.concat(petNames, ", ") .. ") to dino machine!", 4)
+            task.wait(3) -- Add delay to prevent spam
+        else
+            print("❌ Failed to give equipped pets to machine")
+            Library:Notify("❌ Failed to give equipped pets to dino machine", 3)
+        end
+    else
+        print("❌ No pets were equipped successfully!")
+        Library:Notify("❌ No pets were equipped successfully!", 3)
     end
 end
+
+-- Pet selection dropdown (multi-select)
+DinoMachineGroupBox:AddDropdown("PetSelection", {
+    Values = AllPets,
+    Default = {1}, -- Default to "Dog"
+    Multi = true,
+    Text = "Select Pets to Give",
+    Tooltip = "Choose which pets to automatically equip and give to dino machine (multi-select)",
+    Callback = function(Value)
+        SelectedPetsToGive = {}
+        for _, v in pairs(Value) do
+            table.insert(SelectedPetsToGive, AllPets[v])
+        end
+        print("[cb] Selected pets to give:", table.concat(SelectedPetsToGive, ", "))
+        
+        -- Check inventory for newly selected pets
+        if #SelectedPetsToGive > 0 then
+            local availablePets, missingPets = getAvailableSelectedPets()
+            
+            if #availablePets > 0 then
+                local availableNames = {}
+                for _, petInfo in pairs(availablePets) do
+                    table.insert(availableNames, petInfo.petType .. " (" .. petInfo.count .. ")")
+                end
+                Library:Notify("✅ Available: " .. table.concat(availableNames, ", "), 3)
+            end
+            
+            if #missingPets > 0 then
+                Library:Notify("⚠️ Missing: " .. table.concat(missingPets, ", "), 3)
+            end
+        end
+    end,
+})
 
 DinoMachineGroupBox:AddDivider()
 
@@ -775,36 +519,9 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
         print("[cb] Auto Give toggled:", Value)
         
         if Value then
-            -- Check if at least one egg type is enabled
-            if not UseCommonEggs and not UseRareEggs then
-                Library:Notify("⚠️ Please enable at least one egg type filter first!", 3)
-                task.wait(0.1)
-                if Toggles and Toggles.AutoGive then
-                    Toggles.AutoGive:SetValue(false)
-                end
-                return
-            end
-            
-            -- Check if valid pets are selected for enabled egg types
-            local validSelection = false
-            local enabledPets = {}
-            
-            if UseCommonEggs and #SelectedCommonPets > 0 then
-                validSelection = true
-                for _, pet in pairs(SelectedCommonPets) do
-                    table.insert(enabledPets, pet .. " (Common)")
-                end
-            end
-            
-            if UseRareEggs and #SelectedRarePets > 0 then
-                validSelection = true
-                for _, pet in pairs(SelectedRarePets) do
-                    table.insert(enabledPets, pet .. " (Rare)")
-                end
-            end
-            
-            if not validSelection then
-                Library:Notify("⚠️ Please select pets for enabled egg types!", 3)
+            -- Check if any pets are selected
+            if #SelectedPetsToGive == 0 then
+                Library:Notify("⚠️ Please select pets to give first!", 3)
                 task.wait(0.1)
                 if Toggles and Toggles.AutoGive then
                     Toggles.AutoGive:SetValue(false)
@@ -831,7 +548,7 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
             -- Show available pets
             local availablePetNames = {}
             for _, petInfo in pairs(availablePets) do
-                table.insert(availablePetNames, petInfo.petType .. " (" .. petInfo.count .. " " .. petInfo.eggType .. ")")
+                table.insert(availablePetNames, petInfo.petType .. " (" .. petInfo.count .. ")")
             end
             
             local petsText = table.concat(availablePetNames, ", ")
@@ -852,6 +569,8 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
         end
     end,
 })
+
+DinoMachineGroupBox:AddDivider()
 
 -- Auto Claim toggle
 DinoMachineGroupBox:AddToggle("AutoClaim", {
