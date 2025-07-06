@@ -49,6 +49,164 @@ local LocalPlayer = Services.Players.LocalPlayer
 local EventTab = Window:AddTab("Event", "calendar")
 
 -- ================================================================
+-- DINO GIVE SYSTEM
+-- ================================================================
+local DinoGiveGroupBox = EventTab:AddLeftGroupbox("Dino Give 🦖")
+
+-- Variables for Dino Give system
+local DinoGiveEnabled = false
+local SelectedPetsToEquip = {}
+
+-- Common egg pets list (only pets obtainable from Common Egg)
+local CommonEggPets = {
+    "Dog",
+    "Golden Lab", 
+    "Bunny"
+}
+
+-- Function to get pets from inventory by type
+local function getPetsFromInventory(petType)
+    local foundPets = {}
+    
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+        
+        if not data then
+            return {}
+        end
+        
+        -- Direct search in PetsData.PetInventory.Data where we know pets exist
+        if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
+            local petInventory = data.PetsData.PetInventory.Data
+            for petUUID, petData in pairs(petInventory) do
+                if petData and petData.PetType and petData.PetType == petType then
+                    table.insert(foundPets, {
+                        uuid = petUUID,
+                        petType = petData.PetType,
+                        petData = petData
+                    })
+                end
+            end
+        end
+        
+        return foundPets
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Failed to get pets from inventory:", result)
+        return {}
+    end
+end
+
+-- Function to equip a pet
+local function equipPet(petUUID)
+    local success, err = pcall(function()
+        local PetService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        
+        if PetService then
+            PetService:FireServer("EquipPet", petUUID, 1) -- Slot 1
+            print("🐾 Equipped pet:", petUUID)
+            Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
+            return true
+        else
+            print("❌ PetsService not found!")
+            return false
+        end
+    end)
+    
+    if not success then
+        print("❌ Failed to equip pet:", err)
+        Library:Notify("❌ Failed to equip pet: " .. tostring(err), 3)
+        return false
+    end
+    
+    return success
+end
+
+-- Function to perform auto equip for selected pets
+local function performDinoGive()
+    if not DinoGiveEnabled then return end
+    
+    local equippedCount = 0
+    
+    -- Go through each selected pet type
+    for petType, isSelected in pairs(SelectedPetsToEquip) do
+        if isSelected then
+            local pets = getPetsFromInventory(petType)
+            
+            if #pets > 0 then
+                -- Equip the first pet of this type found
+                local pet = pets[1]
+                local success = equipPet(pet.uuid)
+                
+                if success then
+                    equippedCount = equippedCount + 1
+                    print("🦖 Dino Give: Equipped", pet.petType, "with UUID:", pet.uuid)
+                    task.wait(0.5) -- Small delay between equips
+                end
+            else
+                print("⚠️ No", petType, "pets found in inventory")
+            end
+        end
+    end
+    
+    if equippedCount > 0 then
+        print("🦖 Dino Give equipped", equippedCount, "pets")
+        Library:Notify("🦖 Dino Give equipped " .. equippedCount .. " pets!", 3)
+    end
+end
+
+-- Multi-select dropdown for pet selection
+DinoGiveGroupBox:AddDropdown("DinoGivePets", {
+    Values = CommonEggPets,
+    Default = 1,
+    Multi = true, -- Allow multiple selections
+    
+    Text = "Select Pets to Equip",
+    Tooltip = "Choose which common pets to automatically equip when Dino Give is enabled",
+    
+    Callback = function(Value)
+        print("[cb] Selected pets for Dino Give:", Value)
+        SelectedPetsToEquip = Value
+    end,
+})
+
+-- Dino Give toggle
+DinoGiveGroupBox:AddToggle("DinoGive", {
+    Text = "Auto Equip Selected Pets",
+    Tooltip = "Automatically search inventory and equip selected common pets",
+    Default = false,
+    Callback = function(Value)
+        DinoGiveEnabled = Value
+        print("[cb] Dino Give toggled:", Value)
+        
+        if Value then
+            Library:Notify("🦖 Dino Give enabled! Searching and equipping selected pets...", 3)
+            
+            -- Perform the dino give operation immediately
+            task.spawn(function()
+                task.wait(0.5) -- Small delay to ensure everything is ready
+                performDinoGive()
+            end)
+        else
+            Library:Notify("🦖 Dino Give disabled!", 3)
+        end
+    end,
+})
+
+-- Manual equip button
+DinoGiveGroupBox:AddButton("🦖 Equip Selected Pets Now", function()
+    Library:Notify("🔍 Searching inventory for selected pets...", 2)
+    
+    task.spawn(function()
+        performDinoGive()
+    end)
+end)
+
+-- ================================================================
 -- AUTO HATCH SYSTEM
 -- ================================================================
 local AutoHatchGroupBox = EventTab:AddLeftGroupbox("AutoHatch 🥚")
@@ -261,6 +419,16 @@ local function claimMachineReward()
     end
     
     return success
+end
+
+-- Main auto claim function
+local function performAutoClaim()
+    if not AutoClaimEnabled then return end
+    
+    -- Check if machine reward is ready
+    if isMachineRewardReady() then
+        claimMachineReward()
+    end
 end
 
 -- Auto Claim toggle
