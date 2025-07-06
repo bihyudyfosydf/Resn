@@ -459,6 +459,65 @@ DinoMachineGroupBox:AddButton("Check Pet Inventory", function()
     end
 end)
 
+-- Add debug button to inspect data structure
+DinoMachineGroupBox:AddButton("Debug Pet Data", function()
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+        
+        print("🔍 DEBUG: Player data structure:")
+        if data then
+            print("✅ Player data exists")
+            
+            -- Check various possible pet storage locations
+            if data.PetsData then
+                print("✅ PetsData exists")
+                if data.PetsData.PetInventory then
+                    print("✅ PetInventory exists")
+                    if data.PetsData.PetInventory.Data then
+                        print("✅ PetInventory.Data exists with", #data.PetsData.PetInventory.Data or "unknown", "entries")
+                        local count = 0
+                        for uuid, petData in pairs(data.PetsData.PetInventory.Data) do
+                            count = count + 1
+                            if count <= 3 then -- Show first 3 pets
+                                print("🐾 Pet", count .. ":", petData.PetType or "Unknown", "UUID:", uuid)
+                            end
+                        end
+                        if count > 3 then
+                            print("... and", count - 3, "more pets")
+                        end
+                    else
+                        print("❌ PetInventory.Data is nil")
+                    end
+                else
+                    print("❌ PetInventory is nil")
+                end
+            else
+                print("❌ PetsData is nil")
+            end
+            
+            -- Check direct access
+            if data.PetInventory then
+                print("✅ Direct PetInventory exists")
+            end
+            
+            if data.Pets then
+                print("✅ Direct Pets exists")
+            end
+            
+        else
+            print("❌ No player data found!")
+        end
+        
+        Library:Notify("🔍 Debug info printed to console", 3)
+    end)
+    
+    if not success then
+        print("❌ Debug failed:", result)
+        Library:Notify("❌ Debug failed! Check console", 3)
+    end
+end)
+
 -- Add toggles for egg type filters
 DinoMachineGroupBox:AddToggle("UseCommonEggs", {
     Text = "Use Common Egg Pets",
@@ -508,26 +567,66 @@ local function findPlayerPetsByType(petType)
     local foundPets = {}
     
     local success, result = pcall(function()
-        -- Method 1: Use ActivePetsService to get pet inventory
-        local ActivePetsService = require(Services.ReplicatedStorage.Modules.PetServices.ActivePetsService)
+        -- Try multiple methods to get pet inventory
         local DataService = require(Services.ReplicatedStorage.Modules.DataService)
-        
         local data = DataService:GetData()
-        if not data or not data.PetsData or not data.PetsData.PetInventory then
+        
+        if not data then
+            print("❌ No player data found")
             return {}
         end
         
-        local petInventory = data.PetsData.PetInventory.Data
-        for petUUID, petData in pairs(petInventory) do
-            if petData.PetType == petType then
-                table.insert(foundPets, {
-                    uuid = petUUID,
-                    petType = petData.PetType,
-                    petData = petData
-                })
+        -- Debug: Print data structure
+        print("🔍 Searching for pet type:", petType)
+        
+        -- Method 1: Check PetsData.PetInventory
+        if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
+            local petInventory = data.PetsData.PetInventory.Data
+            print("📦 Found PetInventory with", #petInventory or "unknown", "entries")
+            
+            for petUUID, petData in pairs(petInventory) do
+                if petData and petData.PetType then
+                    print("🐾 Found pet:", petData.PetType, "UUID:", petUUID)
+                    if petData.PetType == petType then
+                        table.insert(foundPets, {
+                            uuid = petUUID,
+                            petType = petData.PetType,
+                            petData = petData
+                        })
+                    end
+                end
             end
         end
         
+        -- Method 2: Check PetInventory directly
+        if #foundPets == 0 and data.PetInventory then
+            print("📦 Trying direct PetInventory access")
+            for petUUID, petData in pairs(data.PetInventory) do
+                if petData and petData.PetType == petType then
+                    table.insert(foundPets, {
+                        uuid = petUUID,
+                        petType = petData.PetType,
+                        petData = petData
+                    })
+                end
+            end
+        end
+        
+        -- Method 3: Check Pets directly
+        if #foundPets == 0 and data.Pets then
+            print("📦 Trying direct Pets access")
+            for petUUID, petData in pairs(data.Pets) do
+                if petData and petData.PetType == petType then
+                    table.insert(foundPets, {
+                        uuid = petUUID,
+                        petType = petData.PetType,
+                        petData = petData
+                    })
+                end
+            end
+        end
+        
+        print("✅ Found", #foundPets, petType, "pets in inventory")
         return foundPets
     end)
     
