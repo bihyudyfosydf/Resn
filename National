@@ -204,7 +204,6 @@ local AutoClaimEnabled = false
 local AutoGiveEnabled = false
 local autoClaimConnection = nil
 local autoGiveConnection = nil
-local autoGiveConnection = nil
 
 -- Function to get dino machine data
 local function getDinoMachineData()
@@ -282,20 +281,112 @@ local CommonEggPets = {
     "Bunny"
 }
 
+-- Rare Egg pets list (extracted from PetEggs.module.lua)
+local RareEggPets = {
+    "Orange Tabby",
+    "Monkey",
+    "Spotted Deer", 
+    "Rooster",
+    "Pig"
+}
+
 -- Variables for Auto Give system
 local SelectedPetToGive = "Dog" -- Default selection
 local autoGiveConnection = nil
+local UseCommonEggs = true -- Default enabled
+local UseRareEggs = false -- Default disabled
+
+-- Function to get available pets based on filters
+local function getAvailablePetTypes()
+    local availablePets = {}
+    
+    if UseCommonEggs then
+        for _, pet in pairs(CommonEggPets) do
+            table.insert(availablePets, pet .. " (Common)")
+        end
+    end
+    
+    if UseRareEggs then
+        for _, pet in pairs(RareEggPets) do
+            table.insert(availablePets, pet .. " (Rare)")
+        end
+    end
+    
+    return availablePets
+end
+
+-- Function to extract pet name from dropdown selection
+local function extractPetName(dropdownValue)
+    if not dropdownValue then return nil end
+    
+    -- Remove the egg type suffix (e.g., "Dog (Common)" -> "Dog")
+    local petName = dropdownValue:match("^(.+) %(.*%)$")
+    return petName or dropdownValue
+end
+
+-- Add toggles for egg type filters
+DinoMachineGroupBox:AddToggle("UseCommonEggs", {
+    Text = "Use Common Egg Pets",
+    Tooltip = "Include Common Egg pets (Dog, Golden Lab, Bunny) in auto give",
+    Default = true,
+    Callback = function(Value)
+        UseCommonEggs = Value
+        print("[cb] Use Common Eggs toggled:", Value)
+        
+        -- Update dropdown options
+        local newOptions = getAvailablePetTypes()
+        if Options and Options.PetSelection then
+            Options.PetSelection:SetValues(newOptions)
+            if #newOptions > 0 then
+                Options.PetSelection:SetValue(newOptions[1])
+                SelectedPetToGive = extractPetName(newOptions[1])
+            end
+        end
+        
+        if Value then
+            Library:Notify("✅ Common Egg pets enabled for auto give", 2)
+        else
+            Library:Notify("❌ Common Egg pets disabled for auto give", 2)
+        end
+    end,
+})
+
+DinoMachineGroupBox:AddToggle("UseRareEggs", {
+    Text = "Use Rare Egg Pets", 
+    Tooltip = "Include Rare Egg pets (Orange Tabby, Monkey, etc.) in auto give",
+    Default = false,
+    Callback = function(Value)
+        UseRareEggs = Value
+        print("[cb] Use Rare Eggs toggled:", Value)
+        
+        -- Update dropdown options
+        local newOptions = getAvailablePetTypes()
+        if Options and Options.PetSelection then
+            Options.PetSelection:SetValues(newOptions)
+            if #newOptions > 0 then
+                Options.PetSelection:SetValue(newOptions[1])
+                SelectedPetToGive = extractPetName(newOptions[1])
+            end
+        end
+        
+        if Value then
+            Library:Notify("✅ Rare Egg pets enabled for auto give", 2)
+        else
+            Library:Notify("❌ Rare Egg pets disabled for auto give", 2)
+        end
+    end,
+})
 
 -- Add dropdown for pet selection
 DinoMachineGroupBox:AddDropdown("PetSelection", {
-    Values = CommonEggPets,
+    Values = getAvailablePetTypes(),
     Default = 1,
     Multi = false,
     Text = "Select Pet to Give",
-    Tooltip = "Choose which Common Egg pet to automatically give to dino machine",
+    Tooltip = "Choose which pet to automatically give to dino machine",
     Callback = function(Value)
-        SelectedPetToGive = Value
-        print("[cb] Selected pet to give:", Value)
+        SelectedPetToGive = extractPetName(Value)
+        print("[cb] Selected pet to give:", SelectedPetToGive, "from:", Value)
     end,
 })
 
@@ -402,6 +493,26 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
         print("[cb] Auto Give toggled:", Value)
         
         if Value then
+            -- Check if at least one egg type is enabled
+            if not UseCommonEggs and not UseRareEggs then
+                Library:Notify("⚠️ Please enable at least one egg type filter first!", 3)
+                task.wait(0.1)
+                if Toggles and Toggles.AutoGive then
+                    Toggles.AutoGive:SetValue(false)
+                end
+                return
+            end
+            
+            -- Check if a valid pet is selected
+            if not SelectedPetToGive or SelectedPetToGive == "" then
+                Library:Notify("⚠️ Please select a pet first!", 3)
+                task.wait(0.1)
+                if Toggles and Toggles.AutoGive then
+                    Toggles.AutoGive:SetValue(false)
+                end
+                return
+            end
+            
             Library:Notify("🔄 Auto Give enabled for " .. SelectedPetToGive .. " pets!", 3)
             
             -- Start auto give loop
