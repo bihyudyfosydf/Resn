@@ -291,49 +291,60 @@ local RareEggPets = {
 }
 
 -- Variables for Auto Give system
-local SelectedCommonPet = "Dog" -- Default Common pet selection
-local SelectedRarePet = "Orange Tabby" -- Default Rare pet selection
+local SelectedCommonPets = {"Dog"} -- Default Common pets selection (multi-select)
+local SelectedRarePets = {"Orange Tabby"} -- Default Rare pets selection (multi-select)
 local autoGiveConnection = nil
 local UseCommonEggs = true -- Default enabled
 local UseRareEggs = false -- Default disabled
 
--- Function to get the currently selected pet based on enabled filters
-local function getCurrentSelectedPet()
-    if UseCommonEggs and UseRareEggs then
-        -- If both are enabled, prefer Common pets first, then Rare
-        return SelectedCommonPet or SelectedRarePet
-    elseif UseCommonEggs then
-        return SelectedCommonPet
-    elseif UseRareEggs then
-        return SelectedRarePet
-    else
-        return nil -- No filters enabled
+-- Function to get the currently selected pets based on enabled filters
+local function getCurrentSelectedPets()
+    local selectedPets = {}
+    
+    if UseCommonEggs and #SelectedCommonPets > 0 then
+        for _, pet in pairs(SelectedCommonPets) do
+            table.insert(selectedPets, pet)
+        end
     end
+    
+    if UseRareEggs and #SelectedRarePets > 0 then
+        for _, pet in pairs(SelectedRarePets) do
+            table.insert(selectedPets, pet)
+        end
+    end
+    
+    return selectedPets
 end
 
 -- Add dropdown for Common Egg pet selection
 DinoMachineGroupBox:AddDropdown("CommonPetSelection", {
     Values = CommonEggPets,
-    Default = 1,
-    Multi = false,
-    Text = "Select Common Egg Pet",
-    Tooltip = "Choose which Common Egg pet to automatically give to dino machine",
+    Default = {1},
+    Multi = true,
+    Text = "Select Common Egg Pets",
+    Tooltip = "Choose which Common Egg pets to automatically give to dino machine (multi-select)",
     Callback = function(Value)
-        SelectedCommonPet = Value
-        print("[cb] Selected Common pet to give:", SelectedCommonPet)
+        SelectedCommonPets = {}
+        for _, v in pairs(Value) do
+            table.insert(SelectedCommonPets, CommonEggPets[v])
+        end
+        print("[cb] Selected Common pets to give:", table.concat(SelectedCommonPets, ", "))
     end,
 })
 
 -- Add dropdown for Rare Egg pet selection
 DinoMachineGroupBox:AddDropdown("RarePetSelection", {
     Values = RareEggPets,
-    Default = 1,
-    Multi = false,
-    Text = "Select Rare Egg Pet",
-    Tooltip = "Choose which Rare Egg pet to automatically give to dino machine",
+    Default = {1},
+    Multi = true,
+    Text = "Select Rare Egg Pets",
+    Tooltip = "Choose which Rare Egg pets to automatically give to dino machine (multi-select)",
     Callback = function(Value)
-        SelectedRarePet = Value
-        print("[cb] Selected Rare pet to give:", SelectedRarePet)
+        SelectedRarePets = {}
+        for _, v in pairs(Value) do
+            table.insert(SelectedRarePets, RareEggPets[v])
+        end
+        print("[cb] Selected Rare pets to give:", table.concat(SelectedRarePets, ", "))
     end,
 })
 
@@ -349,7 +360,7 @@ DinoMachineGroupBox:AddToggle("UseCommonEggs", {
         print("[cb] Use Common Eggs toggled:", Value)
         
         if Value then
-            Library:Notify("✅ Common Egg pets enabled: " .. SelectedCommonPet, 2)
+            Library:Notify("✅ Common Egg pets enabled: " .. table.concat(SelectedCommonPets, ", "), 2)
         else
             Library:Notify("❌ Common Egg pets disabled", 2)
         end
@@ -365,7 +376,7 @@ DinoMachineGroupBox:AddToggle("UseRareEggs", {
         print("[cb] Use Rare Eggs toggled:", Value)
         
         if Value then
-            Library:Notify("✅ Rare Egg pets enabled: " .. SelectedRarePet, 2)
+            Library:Notify("✅ Rare Egg pets enabled: " .. table.concat(SelectedRarePets, ", "), 2)
         else
             Library:Notify("❌ Rare Egg pets disabled", 2)
         end
@@ -455,18 +466,24 @@ local function performAutoGive()
     -- Determine which pet types to try giving based on enabled filters
     local petsToTry = {}
     
-    if UseCommonEggs and SelectedCommonPet then
-        table.insert(petsToTry, {
-            petType = SelectedCommonPet,
-            eggType = "Common"
-        })
+    -- Add all selected Common pets first
+    if UseCommonEggs and #SelectedCommonPets > 0 then
+        for _, petType in pairs(SelectedCommonPets) do
+            table.insert(petsToTry, {
+                petType = petType,
+                eggType = "Common"
+            })
+        end
     end
     
-    if UseRareEggs and SelectedRarePet then
-        table.insert(petsToTry, {
-            petType = SelectedRarePet,
-            eggType = "Rare"
-        })
+    -- Then add all selected Rare pets
+    if UseRareEggs and #SelectedRarePets > 0 then
+        for _, petType in pairs(SelectedRarePets) do
+            table.insert(petsToTry, {
+                petType = petType,
+                eggType = "Rare"
+            })
+        end
     end
     
     -- Try to give pets in order (Common first, then Rare)
@@ -513,14 +530,18 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
             local validSelection = false
             local enabledPets = {}
             
-            if UseCommonEggs and SelectedCommonPet then
+            if UseCommonEggs and #SelectedCommonPets > 0 then
                 validSelection = true
-                table.insert(enabledPets, SelectedCommonPet .. " (Common)")
+                for _, pet in pairs(SelectedCommonPets) do
+                    table.insert(enabledPets, pet .. " (Common)")
+                end
             end
             
-            if UseRareEggs and SelectedRarePet then
+            if UseRareEggs and #SelectedRarePets > 0 then
                 validSelection = true
-                table.insert(enabledPets, SelectedRarePet .. " (Rare)")
+                for _, pet in pairs(SelectedRarePets) do
+                    table.insert(enabledPets, pet .. " (Rare)")
+                end
             end
             
             if not validSelection then
