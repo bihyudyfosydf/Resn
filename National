@@ -310,6 +310,8 @@ local DinoEquipEnabled = false
 local SelectedPets = {}
 local equippedPets = {}
 local dinoConnection = nil
+local lastMachineInteraction = 0
+local recentlyTradedPets = {}
 
 -- All available pets (excluding dinosaur pets)
 local AllAvailablePets = {
@@ -471,6 +473,33 @@ local function interactWithDinoMachine()
         
         if DinoMachineService_RE then
             DinoMachineService_RE:FireServer("MachineInteract")
+            
+            -- Mark the current time and pets as recently traded
+            lastMachineInteraction = tick()
+            local player = Services.Players.LocalPlayer
+            local character = player.Character or player.CharacterAdded:Wait()
+            
+            -- Mark all currently equipped pets as recently traded
+            local tradedPets = {}
+            for _, tool in ipairs(character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    -- Check if this tool matches any of our pet names
+                    for petName, _ in pairs(SelectedPets) do
+                        if tool.Name:match("^" .. petName) then
+                            recentlyTradedPets[petName] = tick()
+                            table.insert(tradedPets, petName)
+                            print("🦕 Marked " .. petName .. " as recently traded")
+                            break
+                        end
+                    end
+                end
+            end
+            
+            -- Notify about traded pets
+            if #tradedPets > 0 then
+                Library:Notify("🦕 Traded pets: " .. table.concat(tradedPets, ", "), 3)
+            end
+            
             print("🦕 Interacted with dino machine!")
             Library:Notify("🦕 Dino machine interaction sent!", 2)
             return true
@@ -490,6 +519,13 @@ end
 
 -- Function to wait for dino machine to be ready and then interact
 local function waitForDinoMachineAndInteract()
+    -- Add a small delay to prevent rapid interactions
+    local timeSinceLastInteraction = tick() - lastMachineInteraction
+    if timeSinceLastInteraction < 5 then
+        print("🦕 Cooldown active, waiting before next interaction...")
+        return
+    end
+    
     -- First check if machine is available
     if isDinoMachineAvailable() then
         interactWithDinoMachine()
@@ -546,6 +582,26 @@ local function waitForDinoMachineAndInteract()
     end
 end
 
+-- Function to check if a pet was recently traded
+local function wasRecentlyTraded(petName)
+    local tradeTime = recentlyTradedPets[petName]
+    if not tradeTime then
+        return false
+    end
+    
+    -- Consider a pet "recently traded" for 60 seconds
+    local cooldownPeriod = 60
+    local currentTime = tick()
+    
+    if currentTime - tradeTime < cooldownPeriod then
+        return true
+    else
+        -- Remove old entries
+        recentlyTradedPets[petName] = nil
+        return false
+    end
+end
+
 -- Function to manage pet equipping based on selection
 local function managePetEquipping()
     if not DinoEquipEnabled then return end
@@ -555,10 +611,25 @@ local function managePetEquipping()
     local character = player.Character or player.CharacterAdded:Wait()
     
     local hadEquipChange = false
+    local currentTime = tick()
+    
+    -- Clean up old recently traded entries (older than 60 seconds)
+    for petName, tradeTime in pairs(recentlyTradedPets) do
+        if currentTime - tradeTime > 60 then
+            recentlyTradedPets[petName] = nil
+        end
+    end
     
     -- Check each selected pet
     for petName, isSelected in pairs(SelectedPets) do
         if isSelected then
+            -- Skip pets that were recently traded to avoid spam
+            if wasRecentlyTraded(petName) then
+                -- Uncomment below line for debugging if needed
+                -- print("🦕 Skipping " .. petName .. " - recently traded")
+                continue
+            end
+            
             -- Pet should be equipped
             local petInChar = findPetTool(character, petName)
             if not petInChar then
@@ -568,7 +639,7 @@ local function managePetEquipping()
                 end
             end
         else
-            -- Pet should be unequipped
+            -- Pet should be unequipped (don't skip recently traded for unequipping)
             local petInChar = findPetTool(character, petName)
             if petInChar then
                 -- Pet is equipped, unequip it
