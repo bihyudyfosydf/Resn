@@ -105,56 +105,39 @@ local function getPetsFromInventory(petType)
     end
 end
 
--- Function to equip a pet (fixed to use correct slot for active pets)
+-- Function to equip a pet (simple direct approach)
 local function equipPet(petUUID)
     print("🔧 DEBUG: Attempting to equip pet with UUID:", petUUID)
     
-    -- The issue was that slot 1 equips pets as Tools in Backpack
-    -- We need to use higher slot numbers for active pets in workspace
+    -- Use the simple direct approach that works
     local success, err = pcall(function()
-        -- Get pet services the same way as RefactorMain
-        if Services.ReplicatedStorage:FindFirstChild("Modules") and Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
-            local PetServices = Services.ReplicatedStorage.Modules.PetServices
-            local PetsService = require(PetServices:FindFirstChild("PetsService"))
-            
-            if PetsService then
-                print("🔧 DEBUG: Trying to equip as ACTIVE PET (not tool)")
-                
-                -- Try slots 2-5 for active pets (slot 1 = tool slot)
-                local slotsToTry = {2, 3, 4, 5}
-                
-                for _, slot in pairs(slotsToTry) do
-                    print("🔧 DEBUG: Trying slot", slot, "for active pet")
-                    PetsService:EquipPet(petUUID, slot)
-                    
-                    task.wait(1) -- Wait for server response
-                    
-                    -- Check if pet appeared in workspace as active pet
-                    local found = false
-                    for _, obj in pairs(game.Workspace:GetDescendants()) do
-                        if obj:GetAttribute("UUID") == petUUID and 
-                           obj:GetAttribute("OWNER") == LocalPlayer.Name and
-                           obj:HasTag("PetTargetable") then
-                            found = true
-                            print("✅ SUCCESS: Active pet found in workspace at slot", slot)
-                            return true
-                        end
-                    end
-                    
-                    if found then
-                        break
-                    else
-                        print("❌ Slot", slot, "failed - trying next slot")
-                    end
-                end
-                
-                error("All active pet slots failed")
-            else
-                error("PetsService module not found")
-            end
-        else
-            error("PetServices modules not found")
+        -- Get the remote service directly
+        local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        if not PetsService then
+            error("PetsService remote not found")
         end
+        
+        -- Format UUID with braces like the working example
+        local formattedUUID = "{" .. petUUID .. "}"
+        
+        print("🔧 DEBUG: Using working format: PetsService:FireServer('EquipPet', '" .. formattedUUID .. "', 2)")
+        
+        -- Use the exact format that works
+        PetsService:FireServer("EquipPet", formattedUUID, 2)
+        
+        task.wait(2) -- Wait for server response
+        
+        -- Check if pet appeared in workspace as active pet
+        for _, obj in pairs(game.Workspace:GetDescendants()) do
+            if obj:GetAttribute("UUID") == petUUID and 
+               obj:GetAttribute("OWNER") == LocalPlayer.Name and
+               obj:HasTag("PetTargetable") then
+                print("✅ SUCCESS: Active pet found in workspace!")
+                return true
+            end
+        end
+        
+        error("Pet not found in workspace after equip")
     end)
     
     if success then
