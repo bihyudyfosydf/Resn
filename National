@@ -1,28 +1,38 @@
 -- ================================================================
--- EVENT TAB - External Module for REfactoreMian
--- Created: July 6, 2025
--- Purpose: Modular Event Tab with Dino features
+-- EVENT TAB - Standalone Module for URL Loading
+-- ================================================================
+-- This file contains all Event tab features extracted from the main script
+-- Can be loaded via URL like Crafter and Webhook tabs
 -- ================================================================
 
--- Check if main script variables are available
-if not getgenv().Library or not getgenv().Tabs then
-    warn("❌ EventTab: Main script variables not found! Make sure REfactoreMian is loaded first.")
-    return false
+-- Wait for global variables to be available
+local maxWaitTime = 10 -- Maximum wait time in seconds
+local startTime = tick()
+
+while (not _G.Library or not _G.Window or not _G.Tabs) and (tick() - startTime) < maxWaitTime do
+    task.wait(0.1)
 end
 
--- Get references from main script
-local Library = getgenv().Library
-local Tabs = getgenv().Tabs
-local Services = getgenv().Services or {
-    Workspace = game:GetService("Workspace"),
-    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+if not _G.Library or not _G.Window or not _G.Tabs then
+    error("❌ Event Tab: Required global variables not found! Make sure main script is loaded first.")
+end
+
+-- Use global variables from main script
+local Library = _G.Library
+local Window = _G.Window
+local Tabs = _G.Tabs
+
+-- Get services
+local Services = {
     Players = game:GetService("Players"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
     CollectionService = game:GetService("CollectionService"),
+    Workspace = game:GetService("Workspace"),
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
 
-print("🎯 Loading Event Tab...")
+print("🎯 Event Tab: Loading features...")
 
 -- ================================================================
 -- EVENT TAB - DINO 🦕 AUTO HATCH SYSTEM
@@ -342,10 +352,14 @@ DinoGroupBox:AddButton("🔄 Refresh Pet List", function()
     local availablePets = getAllNonDinoPets()
     
     if #availablePets > 0 then
-        getgenv().Library.Options.DinoMachinePets:SetValues(availablePets)
+        if _G.Options and _G.Options.DinoMachinePets then
+            _G.Options.DinoMachinePets:SetValues(availablePets)
+        end
         Library:Notify("🔄 Found " .. #availablePets .. " non-dino pets!", 2)
     else
-        getgenv().Library.Options.DinoMachinePets:SetValues({"No non-dino pets found"})
+        if _G.Options and _G.Options.DinoMachinePets then
+            _G.Options.DinoMachinePets:SetValues({"No non-dino pets found"})
+        end
         Library:Notify("❌ No non-dino pets found", 3)
     end
 end)
@@ -362,8 +376,8 @@ DinoGroupBox:AddToggle("AutoDinoMachine", {
             if #SelectedPetsForDino == 0 then
                 Library:Notify("⚠️ Please select pets first!", 3)
                 task.wait(0.1)
-                if getgenv().Library.Toggles and getgenv().Library.Toggles.AutoDinoMachine then
-                    getgenv().Library.Toggles.AutoDinoMachine:SetValue(false)
+                if _G.Toggles and _G.Toggles.AutoDinoMachine then
+                    _G.Toggles.AutoDinoMachine:SetValue(false)
                 end
                 return
             end
@@ -390,9 +404,463 @@ DinoGroupBox:AddToggle("AutoDinoMachine", {
 })
 
 -- ================================================================
+-- AUTO FEED PET SYSTEM
+-- ================================================================
+local AutoFeedPetGroupBox = Tabs.Event:AddRightGroupbox("Auto Feed Pet")
+
+-- Global variables for Auto Feed Pet
+local AutoFeedPetEnabled = false
+local SelectedPlantsToFeed = {}
+
+-- Pet list for the game (for feeding functionality)
+local PetList = {
+    -- Basic Pets
+    "Dog", "Golden Lab", "Bunny", "Black Bunny", "Cat", "Orange Tabby", 
+    "Deer", "Spotted Deer", "Monkey", "Silver Monkey", "Chicken", "Rooster", 
+    "Pig", "Turtle", "Cow",
+    
+    -- Rare & Mythical Pets
+    "Snail", "Giant Ant", "Dragonfly", "Polar Bear", "Panda", "Sea Otter", 
+    "Caterpillar", "Praying Mantis", "Hedgehog", "Kiwi", "Mole", "Frog", 
+    "Echo Frog", "Owl", "Night Owl", "Raccoon", "Grey Mouse", "Squirrel", 
+    "Brown Mouse", "Red Giant Ant", "Red Fox",
+    
+    -- Event/Special Pets
+    "Chicken Zombie", "Blood Hedgehog", "Blood Kiwi", "Blood Owl", "Moon Cat",
+    
+    -- Flying/Bee Pets
+    "Bee", "Honey Bee", "Petal Bee", "Golden Bee", "Bear Bee", "Queen Bee", 
+    "Wasp", "Tarantula Hawk", "Moth", "Butterfly", "Disco Bee", "Pack Bee",
+    
+    -- Other Flying Pets
+    "Firefly", "Red Dragon", "Cooked Owl",
+    
+    -- Aquatic Pets
+    "Starfish", "Crab", "Seagull", "Toucan", "Flamingo", "Sea Turtle", "Seal",
+    
+    -- Dino Pets
+    "Raptor", "Triceratops", "Stegosaurus", "Pterodactyl", "Brontosaurus", "T-Rex",
+    
+    -- Land Animals
+    "Orangutan", "Peacock", "Capybara", "Scarlet Macaw", "Ostrich", 
+    "Mimic Octopus", "Meerkat", "Sand Snake", "Axolotl", "Hyacinth Macaw", 
+    "Fennec Fox", "Hamster"
+}
+
+-- Pet Services
+local function getPetServices()
+    local success, result = pcall(function()
+        if Services.ReplicatedStorage:FindFirstChild("Modules") and Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
+            local PetServices = Services.ReplicatedStorage.Modules.PetServices
+            local ActivePetsService = require(PetServices:FindFirstChild("ActivePetsService"))
+            local PetsService = require(PetServices:FindFirstChild("PetsService"))
+            return {
+                ActivePetsService = ActivePetsService,
+                PetsService = PetsService,
+            }
+        end
+        return nil
+    end)
+    if success then
+        return result
+    else
+        return nil
+    end
+end
+
+-- Check if a specific pet needs food
+local function petNeedsFood(petUUID)
+    local success, result = pcall(function()
+        -- Get current pet data
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+
+        if not data or not data.PetsData then
+            print("No PetsData found for hunger check")
+            return true -- If we can't check, assume it needs food
+        end
+
+        -- Find the pet in inventory data
+        local petInventory = data.PetsData.PetInventory
+        if not petInventory or not petInventory.Data then
+            print("No PetInventory found for hunger check")
+            return true
+        end
+
+        local petData = petInventory.Data[petUUID]
+        if not petData then
+            print("Pet data not found for UUID:", petUUID)
+            return true
+        end
+
+        -- Get pet type data for DefaultHunger
+        local PetRegistry = require(Services.ReplicatedStorage.Data.PetRegistry)
+        local PetList = PetRegistry.PetList
+        local petTypeData = PetList[petData.PetType]
+
+        if not petTypeData then
+            print("Pet type data not found for:", petData.PetType)
+            return true
+        end
+
+        local defaultHunger = petTypeData.DefaultHunger or 100
+        local currentHunger = petData.PetData.Hunger or 0
+        local hungerPercentage = currentHunger / defaultHunger
+
+        print(
+            "Hunger check for",
+            petData.PetType,
+            "- Current:",
+            currentHunger,
+            "Max:",
+            defaultHunger,
+            "Percentage:",
+            math.floor(hungerPercentage * 100) .. "%"
+        )
+
+        -- Adjust threshold - pets need food if they're below 90% fed
+        local needsFood = hungerPercentage < 0.9
+        print("Pet needs food:", needsFood, "(threshold: 90%)")
+
+        return needsFood
+    end)
+
+    if success then
+        return result
+    else
+        print("Error checking pet hunger:", result)
+        return true -- If error checking, assume it needs food
+    end
+end
+
+-- Function to check for active pets and their hunger status
+local function checkPlayerPets()
+    local foundPets = {}
+    local activePets = {}
+
+    -- Method 1: ActivePetsService (newer system)
+    local success1, petsFromActiveService = pcall(function()
+        local petServices = getPetServices()
+        if not petServices then
+            return {}
+        end
+
+        local processedPets = {}
+
+        -- Get data service for pet data
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+
+        if not data or not data.PetsData then
+            print("No PetsData found")
+            return {}
+        end
+
+        -- Get PetRegistry for pet type data (needed for DefaultHunger)
+        local PetRegistry = require(Services.ReplicatedStorage.Data.PetRegistry)
+        local PetListRegistry = PetRegistry.PetList
+
+        -- Get ActivePetsService for the new pet system
+        local ActivePetsService = petServices.ActivePetsService
+
+        -- Use ActivePetsService to get active pets
+        print("=== Getting pets from ActivePetsService ===")
+        local clientPetState = ActivePetsService:GetClientPetState(LocalPlayer.Name)
+
+        if clientPetState then
+            for petUUID, petState in pairs(clientPetState) do
+                print("Found active pet UUID:", petUUID)
+
+                -- Get pet data from ActivePetsService
+                local petData = ActivePetsService:GetPetData(LocalPlayer.Name, petUUID)
+
+                if petData then
+                    -- Check if this pet is in our known pet list
+                    local isKnownPet = false
+                    for _, knownPet in pairs(PetList) do
+                        if petData.PetType == knownPet then
+                            isKnownPet = true
+                            break
+                        end
+                    end
+
+                    -- Get pet type data for DefaultHunger
+                    local petTypeData = PetListRegistry[petData.PetType]
+                    local defaultHunger = petTypeData and petTypeData.DefaultHunger or 100
+                    local currentHunger = petData.PetData.Hunger or 0
+                    local hungerPercentage = currentHunger / defaultHunger
+
+                    table.insert(processedPets, {
+                        name = petData.PetType,
+                        type = petData.PetType,
+                        uuid = petUUID,
+                        age = petData.PetData.Age or 0,
+                        currentHunger = currentHunger,
+                        maxHunger = defaultHunger,
+                        hungerPercentage = hungerPercentage,
+                        isKnownPet = isKnownPet,
+                        location = "Farm Area",
+                    })
+                end
+            end
+        end
+
+        return processedPets
+    end)
+
+    if success1 and petsFromActiveService then
+        -- Separate known pets from all pets
+        for _, pet in pairs(petsFromActiveService) do
+            table.insert(activePets, pet)
+            if pet.isKnownPet then
+                table.insert(foundPets, pet)
+            end
+        end
+    end
+
+    -- Method 2: Scan workspace for pet objects (safer fallback method)
+    local success2, workspacePets = pcall(function()
+        local workspacePetList = {}
+
+        -- Add a small delay to ensure we're in a stable thread context
+        task.wait(0.1)
+
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if
+                obj:GetAttribute("OWNER") == LocalPlayer.Name
+                and obj:GetAttribute("UUID")
+                and obj:HasTag("PetTargetable")
+            then
+                local petType = obj:GetAttribute("PetType") or obj.Name
+                local uuid = obj:GetAttribute("UUID")
+
+                -- Check if we already have this pet from ActivePetsService
+                local alreadyFound = false
+                for _, existing in pairs(activePets) do
+                    if existing.uuid == uuid then
+                        alreadyFound = true
+                        existing.workspaceObject = obj
+                        break
+                    end
+                end
+
+                if not alreadyFound then
+                    -- Check if this pet is in our known pet list (fallback to hardcoded list)
+                    local isKnownPet = false
+                    for _, knownPet in pairs(PetList) do
+                        if petType == knownPet or obj.Name == knownPet then
+                            isKnownPet = true
+                            break
+                        end
+                    end
+
+                    local pet = {
+                        name = petType ~= "PetMover" and petType or obj.Name,
+                        type = petType,
+                        uuid = uuid,
+                        location = obj.Parent and obj.Parent.Name or "Unknown",
+                        isKnownPet = isKnownPet,
+                        workspaceObject = obj,
+                    }
+
+                    table.insert(workspacePetList, pet)
+                end
+            end
+        end
+        return workspacePetList
+    end)
+
+    if success2 and workspacePets then
+        for _, pet in pairs(workspacePets) do
+            table.insert(activePets, pet)
+            if pet.isKnownPet then
+                table.insert(foundPets, pet)
+            end
+        end
+    end
+
+    return foundPets, activePets
+end
+
+-- Show Active Pets button
+AutoFeedPetGroupBox:AddButton("📊 Show Active Pets", function()
+    Library:Notify("🔍 Scanning for active pets...", 2)
+
+    -- Use task.spawn to ensure proper thread context for workspace access
+    task.spawn(function()
+        -- Safely check for pets with comprehensive error handling
+        local success, knownPets, allActivePets = pcall(function()
+            return checkPlayerPets()
+        end)
+
+        if not success then
+            Library:Notify("❌ Error scanning pets: " .. tostring(knownPets), 5)
+            return
+        end
+
+        local debugInfo = {}
+
+        -- Check game data for additional information (with error handling)
+        local dataSuccess, dataResult = pcall(function()
+            if not Services.ReplicatedStorage:FindFirstChild("Modules") then
+                return "Modules not found"
+            end
+
+            if not Services.ReplicatedStorage.Modules:FindFirstChild("DataService") then
+                return "DataService not found"
+            end
+
+            local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+            local data = DataService:GetData()
+
+            if not data then
+                return "No game data"
+            end
+
+            if not data.PetsData then
+                return "No PetsData"
+            end
+
+            if not data.PetsData.EquippedPets then
+                return "No EquippedPets"
+            end
+
+            local equippedCount = #data.PetsData.EquippedPets
+            return "Equipped pets in data: " .. equippedCount
+        end)
+
+        if dataSuccess then
+            table.insert(debugInfo, dataResult)
+        else
+            table.insert(debugInfo, "Data check failed: " .. tostring(dataResult))
+        end
+
+        -- Check ActivePetsService status
+        local activeServiceSuccess, activeServiceResult = pcall(function()
+            if not Services.ReplicatedStorage:FindFirstChild("Modules") then
+                return "Modules not found"
+            end
+
+            local PetServices = Services.ReplicatedStorage.Modules:FindFirstChild("PetServices")
+            if not PetServices then
+                return "PetServices not found"
+            end
+
+            local ActivePetsService = require(PetServices:FindFirstChild("ActivePetsService"))
+            if not ActivePetsService then
+                return "ActivePetsService not available"
+            end
+
+            local clientState = ActivePetsService:GetClientPetState(LocalPlayer.Name)
+            if not clientState then
+                return "No client pet state"
+            end
+
+            local petCount = 0
+            for _ in pairs(clientState) do
+                petCount = petCount + 1
+            end
+
+            return "ActivePetsService pets: " .. petCount
+        end)
+
+        if activeServiceSuccess then
+            table.insert(debugInfo, activeServiceResult)
+        else
+            table.insert(debugInfo, "ActivePetsService check failed: " .. tostring(activeServiceResult))
+        end
+
+        -- Show results with priority on known pets
+        if #knownPets > 0 then
+            local message = "🐾 Active Pets Found (" .. #knownPets .. "/" .. #allActivePets .. "):\n\n"
+            for i, pet in pairs(knownPets) do
+                message = message .. i .. ". " .. pet.name .. "\n"
+                if pet.age and pet.age > 0 then
+                    message = message .. "   🎂 Age: " .. pet.age .. "\n"
+                end
+                if pet.hungerPercentage then
+                    local hungerEmoji = pet.hungerPercentage > 0.7 and "🟢"
+                        or pet.hungerPercentage > 0.3 and "🟡"
+                        or "🔴"
+                    message = message
+                        .. "   🍎 Hunger: "
+                        .. math.floor(pet.hungerPercentage * 100)
+                        .. "% "
+                        .. hungerEmoji
+                        .. "\n"
+                end
+                message = message .. "   📍 Location: " .. pet.location .. "\n"
+                if pet.uuid then
+                    message = message .. "   🆔 ID: " .. string.sub(pet.uuid, 1, 8) .. "...\n"
+                end
+                if i >= 4 then -- Limit to 4 pets for readability
+                    message = message .. "\n... and " .. (#knownPets - 4) .. " more pets"
+                    break
+                end
+            end
+
+            -- Add other active pets if any
+            local otherPets = #allActivePets - #knownPets
+            if otherPets > 0 then
+                message = message .. "\n\n🔍 Other/Unknown Pets: " .. otherPets
+            end
+
+            Library:Notify(message, 12)
+        elseif #allActivePets > 0 then
+            local message = "🐾 Active Pets Found (" .. #allActivePets .. "):\n\n"
+            for i, pet in pairs(allActivePets) do
+                local displayName = pet.name ~= "PetMover" and pet.name or pet.type
+                message = message .. i .. ". " .. displayName .. "\n"
+                if pet.age and pet.age > 0 then
+                    message = message .. "   🎂 Age: " .. pet.age .. "\n"
+                end
+                if pet.hungerPercentage then
+                    local hungerEmoji = pet.hungerPercentage > 0.7 and "🟢"
+                        or pet.hungerPercentage > 0.3 and "🟡"
+                        or "🔴"
+                    message = message
+                        .. "   🍎 Hunger: "
+                        .. math.floor(pet.hungerPercentage * 100)
+                        .. "% "
+                        .. hungerEmoji
+                        .. "\n"
+                end
+                message = message .. "   📍 Location: " .. pet.location .. "\n"
+                if i >= 4 then -- Limit to 4 pets for readability
+                    message = message .. "\n... and " .. (#allActivePets - 4) .. " more pets"
+                    break
+                end
+            end
+            message = message .. "\n\n⚠️ Using workspace detection (ActivePetsService may not be fully loaded)"
+            Library:Notify(message, 10)
+        else
+            -- Show detailed debug info when no pets found
+            local debugMessage = "❌ No Active Pets Found\n\n📊 Debug Information:\n"
+            for _, info in pairs(debugInfo) do
+                debugMessage = debugMessage .. "• " .. info .. "\n"
+            end
+            debugMessage = debugMessage .. "• Total workspace pets: " .. #allActivePets .. "\n"
+            debugMessage = debugMessage .. "\n💡 Troubleshooting Tips:\n"
+            debugMessage = debugMessage .. "• Make sure you have pets equipped\n"
+            debugMessage = debugMessage .. "• Try spawning/summoning your pets\n"
+            debugMessage = debugMessage .. "• Wait a moment for ActivePetsService to load\n"
+            debugMessage = debugMessage .. "• Check if you're in the right area\n"
+            debugMessage = debugMessage .. "• Ensure you're in your own farm plot"
+
+            Library:Notify(debugMessage, 10)
+        end
+
+        -- Always show this notification to confirm button works
+        task.wait(1)
+        Library:Notify("🔍 Pet scan completed! Check results above.", 3)
+    end)
+end)
+
+-- ================================================================
 -- SUCCESS MESSAGE
 -- ================================================================
-print("✅ Event Tab loaded successfully!")
-Library:Notify("🎯 Event Tab integrated! Dino features are ready.", 3)
+print("✅ Event Tab: All features loaded successfully!")
+Library:Notify("🎯 Event Tab loaded! Check the Event tab for Dino features and Auto Feed Pet.", 4)
 
-return true -- Return success
+-- Return success indicator
+return true
