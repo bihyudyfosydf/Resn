@@ -105,80 +105,66 @@ local function getPetsFromInventory(petType)
     end
 end
 
--- Function to equip a pet (using proper PetsService module with fallback)
+-- Function to equip a pet (fixed to use correct slot for active pets)
 local function equipPet(petUUID)
     print("🔧 DEBUG: Attempting to equip pet with UUID:", petUUID)
     
-    -- Method 1: Try using PetsService module (recommended approach)
+    -- The issue was that slot 1 equips pets as Tools in Backpack
+    -- We need to use higher slot numbers for active pets in workspace
     local success, err = pcall(function()
-        print("🔧 DEBUG: Method 1 - Using PetsService module...")
-        
-        if not Services.ReplicatedStorage:FindFirstChild("Modules") then
-            error("Modules folder not found")
+        -- Get pet services the same way as RefactorMain
+        if Services.ReplicatedStorage:FindFirstChild("Modules") and Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
+            local PetServices = Services.ReplicatedStorage.Modules.PetServices
+            local PetsService = require(PetServices:FindFirstChild("PetsService"))
+            
+            if PetsService then
+                print("🔧 DEBUG: Trying to equip as ACTIVE PET (not tool)")
+                
+                -- Try slots 2-5 for active pets (slot 1 = tool slot)
+                local slotsToTry = {2, 3, 4, 5}
+                
+                for _, slot in pairs(slotsToTry) do
+                    print("🔧 DEBUG: Trying slot", slot, "for active pet")
+                    PetsService:EquipPet(petUUID, slot)
+                    
+                    task.wait(1) -- Wait for server response
+                    
+                    -- Check if pet appeared in workspace as active pet
+                    local found = false
+                    for _, obj in pairs(game.Workspace:GetDescendants()) do
+                        if obj:GetAttribute("UUID") == petUUID and 
+                           obj:GetAttribute("OWNER") == LocalPlayer.Name and
+                           obj:HasTag("PetTargetable") then
+                            found = true
+                            print("✅ SUCCESS: Active pet found in workspace at slot", slot)
+                            return true
+                        end
+                    end
+                    
+                    if found then
+                        break
+                    else
+                        print("❌ Slot", slot, "failed - trying next slot")
+                    end
+                end
+                
+                error("All active pet slots failed")
+            else
+                error("PetsService module not found")
+            end
+        else
+            error("PetServices modules not found")
         end
-        
-        if not Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
-            error("PetServices folder not found in Modules")
-        end
-        
-        local PetServices = Services.ReplicatedStorage.Modules.PetServices
-        print("🔧 DEBUG: Found PetServices folder")
-        
-        if not PetServices:FindFirstChild("PetsService") then
-            error("PetsService module not found in PetServices folder")
-        end
-        
-        local PetsService = require(PetServices:FindFirstChild("PetsService"))
-        print("🔧 DEBUG: Successfully required PetsService module")
-        
-        if not PetsService then
-            error("PetsService module returned nil")
-        end
-        
-        if not PetsService.EquipPet then
-            error("EquipPet function not found in PetsService")
-        end
-        
-        print("🔧 DEBUG: Calling PetsService:EquipPet with UUID:", petUUID, "and slot: 1")
-        
-        -- Use the correct method signature: PetsService:EquipPet(petUUID, slotNumber)
-        PetsService:EquipPet(petUUID, 1)
-        
-        print("🔧 DEBUG: PetsService:EquipPet call completed successfully")
-        return true
     end)
     
     if success then
-        print("🐾 Method 1 SUCCESS: Equipped pet:", petUUID)
-        Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
+        print("🐾 Successfully equipped ACTIVE pet:", petUUID)
+        Library:Notify("🐾 Equipped active pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
         return true
     else
-        print("❌ Method 1 failed:", err)
-        
-        -- Method 2: Fallback to direct remote event call
-        print("🔧 DEBUG: Method 2 - Trying direct remote event...")
-        local success2, err2 = pcall(function()
-            local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
-            
-            if PetsService then
-                print("🔧 DEBUG: Found PetsService remote event")
-                PetsService:FireServer("EquipPet", petUUID, 1)
-                print("🔧 DEBUG: Fired EquipPet remote event")
-                return true
-            else
-                error("PetsService remote event not found")
-            end
-        end)
-        
-        if success2 then
-            print("🐾 Method 2 SUCCESS: Equipped pet:", petUUID)
-            Library:Notify("🐾 Equipped pet (fallback method) with UUID: " .. string.sub(petUUID, 1, 8), 2)
-            return true
-        else
-            print("❌ Method 2 also failed:", err2)
-            Library:Notify("❌ Failed to equip pet: " .. tostring(err), 4)
-            return false
-        end
+        print("❌ Failed to equip active pet:", err)
+        Library:Notify("❌ Failed to equip active pet: " .. tostring(err), 4)
+        return false
     end
 end
 
