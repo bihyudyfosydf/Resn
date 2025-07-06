@@ -88,7 +88,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- CREATE EVENT TAB
 -- ================================================================
-local EventTab = Window:AddTab("Eventv2", "calendar")
+local EventTab = Window:AddTab("Event", "calendar")
 
 -- ================================================================
 -- AUTO HATCH SYSTEM
