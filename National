@@ -104,17 +104,24 @@ end
 -- Function to equip a pet
 local function equipPet(petUUID)
     local success, err = pcall(function()
-        local PetService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
-        
-        if PetService then
-            PetService:FireServer("EquipPet", petUUID, 1) -- Slot 1
-            print("🐾 Equipped pet:", petUUID)
-            Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
-            return true
-        else
-            print("❌ PetsService not found!")
+        -- Try to get PetServices module like in REfactorMain
+        local PetServices = Services.ReplicatedStorage.Modules:FindFirstChild("PetServices")
+        if not PetServices then
+            print("❌ PetServices module not found!")
             return false
         end
+        
+        local PetsService = require(PetServices:FindFirstChild("PetsService"))
+        if not PetsService then
+            print("❌ PetsService module not found!")
+            return false
+        end
+        
+        -- Use the PetsService module's EquipPet function
+        PetsService:EquipPet(petUUID, 1) -- Slot 1
+        print("🐾 Equipped pet:", petUUID)
+        Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
+        return true
     end)
     
     if not success then
