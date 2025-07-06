@@ -263,6 +263,18 @@ local function claimMachineReward()
     return success
 end
 
+-- Main auto claim function
+local function performAutoClaim()
+    if not AutoClaimEnabled then return end
+    
+    if isMachineRewardReady() then
+        local success = claimMachineReward()
+        if success then
+            task.wait(1) -- Small delay after claiming
+        end
+    end
+end
+
 -- Auto Claim toggle
 DinoMachineGroupBox:AddToggle("AutoClaim", {
     Text = "Auto Claim",
@@ -286,6 +298,162 @@ DinoMachineGroupBox:AddToggle("AutoClaim", {
             if autoClaimConnection then
                 autoClaimConnection:Disconnect()
                 autoClaimConnection = nil
+            end
+        end
+    end,
+})
+
+-- ================================================================
+-- DINO GIVE SYSTEM
+-- ================================================================
+local DinoGiveGroupBox = EventTab:AddLeftGroupbox("Dino Give 🦕")
+
+-- Variables for Dino Give system
+local AutoEquipEnabled = false
+local SelectedPets = {}
+local autoEquipConnection = nil
+
+-- List of pets available from Common Egg (based on PetEggs.module.lua)
+local CommonEggPets = {
+    "Dog",
+    "Golden Lab", 
+    "Bunny"
+}
+
+-- Function to get pets of a specific type from inventory
+local function getPetsFromInventory(petType)
+    local foundPets = {}
+    
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+        
+        if not data then
+            return {}
+        end
+        
+        -- Direct search in PetsData.PetInventory.Data where we know pets exist
+        if data.PetsData and data.PetsData.PetInventory and data.PetsData.PetInventory.Data then
+            local petInventory = data.PetsData.PetInventory.Data
+            for petUUID, petData in pairs(petInventory) do
+                if petData and petData.PetType and petData.PetType == petType then
+                    table.insert(foundPets, {
+                        uuid = petUUID,
+                        petType = petData.PetType,
+                        petData = petData
+                    })
+                end
+            end
+        end
+        
+        return foundPets
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Failed to get pets from inventory:", result)
+        return {}
+    end
+end
+
+-- Function to equip a pet
+local function equipPet(petUUID)
+    local success, err = pcall(function()
+        local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        if PetsService then
+            -- Try to equip the pet using slot 2 (which typically creates active pets, not tools)
+            PetsService:FireServer("EquipPet", petUUID, 2)
+            print("🐾 Equipped pet:", petUUID)
+            Library:Notify("🐾 Equipped pet: " .. string.sub(petUUID, 1, 8) .. "...", 2)
+            return true
+        else
+            print("❌ PetsService not found!")
+            return false
+        end
+    end)
+    
+    if not success then
+        print("❌ Failed to equip pet:", err)
+        return false
+    end
+    
+    return success
+end
+
+-- Function to check if pet is already equipped
+local function isPetEquipped(petUUID)
+    for _, obj in pairs(game.Workspace:GetDescendants()) do
+        if obj:GetAttribute("OWNER") == LocalPlayer.Name and 
+           obj:GetAttribute("UUID") == petUUID and
+           obj:HasTag("PetTargetable") then
+            return true
+        end
+    end
+    return false
+end
+
+-- Function to perform auto equip
+local function performAutoEquip()
+    if not AutoEquipEnabled then return end
+    
+    -- Check selected pets and equip if not already equipped
+    for petType, selected in pairs(SelectedPets) do
+        if selected then
+            local pets = getPetsFromInventory(petType)
+            
+            -- Try to equip the first available pet of this type that isn't already equipped
+            for _, pet in pairs(pets) do
+                if not isPetEquipped(pet.uuid) then
+                    local success = equipPet(pet.uuid)
+                    if success then
+                        task.wait(1) -- Small delay between equips
+                        break -- Only equip one of each type
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Multi-select dropdown for Common Egg pets
+DinoGiveGroupBox:AddDropdown("CommonEggPets", {
+    Values = CommonEggPets,
+    Default = 1,
+    Multi = true, -- Allow multiple selections
+    
+    Text = "Select Pets to Auto-Equip",
+    Tooltip = "Choose which Common Egg pets to automatically equip",
+    
+    Callback = function(Value)
+        print("[cb] Selected pets for auto-equip:", Value)
+        SelectedPets = Value
+    end,
+})
+
+-- Auto Equip toggle
+DinoGiveGroupBox:AddToggle("AutoEquipPets", {
+    Text = "Auto Equip Selected Pets",
+    Tooltip = "Automatically equip selected Common Egg pets from inventory",
+    Default = false,
+    Callback = function(Value)
+        AutoEquipEnabled = Value
+        print("[cb] Auto Equip Pets toggled:", Value)
+        
+        if Value then
+            Library:Notify("🐾 Auto Equip enabled!", 3)
+            
+            -- Start auto equip loop
+            autoEquipConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoEquip()
+            end)
+        else
+            Library:Notify("🐾 Auto Equip disabled!", 3)
+            
+            -- Stop auto equip loop
+            if autoEquipConnection then
+                autoEquipConnection:Disconnect()
+                autoEquipConnection = nil
             end
         end
     end,
