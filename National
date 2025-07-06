@@ -685,15 +685,15 @@ DinoGroupBox:AddDropdown("DinoSelectedPets", {
 
 -- Auto Equip toggle
 DinoGroupBox:AddToggle("DinoAutoEquip", {
-    Text = "Auto Equip Selected Pets",
-    Tooltip = "Automatically equip the selected pets from your inventory",
+    Text = "Auto Give Pets to Dino Machine",
+    Tooltip = "Automatically equip selected pets and give them to the Dino Machine for processing",
     Default = false,
     Callback = function(Value)
         DinoEquipEnabled = Value
-        print("[cb] Dino Auto Equip toggled:", Value)
+        print("[cb] Auto Give to Dino Machine toggled:", Value)
         
         if Value then
-            Library:Notify("🦕 Auto Equip enabled!", 3)
+            Library:Notify("🦕 Auto Give to Dino Machine enabled!", 3)
             
             -- Initial equip attempt
             managePetEquipping()
@@ -703,7 +703,7 @@ DinoGroupBox:AddToggle("DinoAutoEquip", {
                 managePetEquipping()
             end)
         else
-            Library:Notify("🦕 Auto Equip disabled!", 3)
+            Library:Notify("🦕 Auto Give to Dino Machine disabled!", 3)
             
             -- Stop monitoring loop
             if dinoConnection then
