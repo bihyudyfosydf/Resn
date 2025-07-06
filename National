@@ -105,27 +105,80 @@ local function getPetsFromInventory(petType)
     end
 end
 
--- Function to equip a pet (simplified)
+-- Function to equip a pet (using proper PetsService module with fallback)
 local function equipPet(petUUID)
+    print("🔧 DEBUG: Attempting to equip pet with UUID:", petUUID)
+    
+    -- Method 1: Try using PetsService module (recommended approach)
     local success, err = pcall(function()
-        -- Direct remote event call - simple and effective
-        local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+        print("🔧 DEBUG: Method 1 - Using PetsService module...")
         
-        if PetsService then
-            PetsService:FireServer("EquipPet", petUUID, 1)
-            return true
-        else
-            return false
+        if not Services.ReplicatedStorage:FindFirstChild("Modules") then
+            error("Modules folder not found")
         end
+        
+        if not Services.ReplicatedStorage.Modules:FindFirstChild("PetServices") then
+            error("PetServices folder not found in Modules")
+        end
+        
+        local PetServices = Services.ReplicatedStorage.Modules.PetServices
+        print("🔧 DEBUG: Found PetServices folder")
+        
+        if not PetServices:FindFirstChild("PetsService") then
+            error("PetsService module not found in PetServices folder")
+        end
+        
+        local PetsService = require(PetServices:FindFirstChild("PetsService"))
+        print("🔧 DEBUG: Successfully required PetsService module")
+        
+        if not PetsService then
+            error("PetsService module returned nil")
+        end
+        
+        if not PetsService.EquipPet then
+            error("EquipPet function not found in PetsService")
+        end
+        
+        print("🔧 DEBUG: Calling PetsService:EquipPet with UUID:", petUUID, "and slot: 1")
+        
+        -- Use the correct method signature: PetsService:EquipPet(petUUID, slotNumber)
+        PetsService:EquipPet(petUUID, 1)
+        
+        print("🔧 DEBUG: PetsService:EquipPet call completed successfully")
+        return true
     end)
     
     if success then
-        print("🐾 Equipped pet:", petUUID)
+        print("🐾 Method 1 SUCCESS: Equipped pet:", petUUID)
         Library:Notify("🐾 Equipped pet with UUID: " .. string.sub(petUUID, 1, 8), 2)
         return true
     else
-        print("❌ Failed to equip pet:", err)
-        return false
+        print("❌ Method 1 failed:", err)
+        
+        -- Method 2: Fallback to direct remote event call
+        print("🔧 DEBUG: Method 2 - Trying direct remote event...")
+        local success2, err2 = pcall(function()
+            local PetsService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetsService")
+            
+            if PetsService then
+                print("🔧 DEBUG: Found PetsService remote event")
+                PetsService:FireServer("EquipPet", petUUID, 1)
+                print("🔧 DEBUG: Fired EquipPet remote event")
+                return true
+            else
+                error("PetsService remote event not found")
+            end
+        end)
+        
+        if success2 then
+            print("🐾 Method 2 SUCCESS: Equipped pet:", petUUID)
+            Library:Notify("🐾 Equipped pet (fallback method) with UUID: " .. string.sub(petUUID, 1, 8), 2)
+            return true
+        else
+            print("❌ Method 2 also failed:", err2)
+            Library:Notify("❌ Failed to equip pet: " .. tostring(err), 4)
+            return false
+        end
     end
 end
 
@@ -206,6 +259,41 @@ DinoGiveGroupBox:AddButton("🦖 Equip Selected Pets Now", function()
     
     task.spawn(function()
         performDinoGive()
+    end)
+end)
+
+-- Debug button to test pet finding and equipping
+DinoGiveGroupBox:AddButton("🔧 Debug: Test Pet Finding", function()
+    Library:Notify("🔍 Testing pet finding and equipping...", 2)
+    
+    task.spawn(function()
+        print("=== DEBUG: Testing pet finding ===")
+        
+        -- Test finding pets for each selected type
+        for petType, isSelected in pairs(SelectedPetsToEquip) do
+            if isSelected then
+                print("🔍 Searching for pets of type:", petType)
+                local pets = getPetsFromInventory(petType)
+                print("Found", #pets, "pets of type", petType)
+                
+                for i, pet in pairs(pets) do
+                    print("  Pet", i, "- UUID:", pet.uuid, "Type:", pet.petType)
+                    
+                    if i == 1 then -- Test equipping the first pet only
+                        print("🔧 Testing equip for first pet...")
+                        local success = equipPet(pet.uuid)
+                        if success then
+                            print("✅ Successfully equipped pet:", pet.uuid)
+                            break -- Only test one pet
+                        else
+                            print("❌ Failed to equip pet:", pet.uuid)
+                        end
+                    end
+                end
+                
+                break -- Only test one pet type
+            end
+        end
     end)
 end)
 
