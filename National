@@ -606,8 +606,12 @@ local function findPlayerPetsByType(petType)
                         print("   🐾 Checking pet", searchCount .. ":", petData.PetType, "vs target:", petType)
                     end
                     
-                    if petData.PetType == petType then
-                        print("✅ DEBUG: Found matching pet!", petType, "UUID:", petUUID)
+                    -- SIMPLIFIED: Check if pet name CONTAINS the target type (case-insensitive)
+                    local petTypeLower = string.lower(petData.PetType)
+                    local targetTypeLower = string.lower(petType)
+                    
+                    if string.find(petTypeLower, targetTypeLower) then
+                        print("✅ DEBUG: Found matching pet! Target:", petType, "Actual:", petData.PetType, "UUID:", petUUID)
                         table.insert(foundPets, {
                             uuid = petUUID,
                             petType = petData.PetType,
