@@ -1,0 +1,398 @@
+-- ================================================================
+-- EVENT TAB - External Module for REfactoreMian
+-- Created: July 6, 2025
+-- Purpose: Modular Event Tab with Dino features
+-- ================================================================
+
+-- Check if main script variables are available
+if not getgenv().Library or not getgenv().Tabs then
+    warn("❌ EventTab: Main script variables not found! Make sure REfactoreMian is loaded first.")
+    return false
+end
+
+-- Get references from main script
+local Library = getgenv().Library
+local Tabs = getgenv().Tabs
+local Services = getgenv().Services or {
+    Workspace = game:GetService("Workspace"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players"),
+    CollectionService = game:GetService("CollectionService"),
+}
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+print("🎯 Loading Event Tab...")
+
+-- ================================================================
+-- EVENT TAB - DINO 🦕 AUTO HATCH SYSTEM
+-- ================================================================
+
+-- Dino 🦕 GroupBox
+local DinoGroupBox = Tabs.Event:AddLeftGroupbox("Dino🦕")
+
+-- Global variables for Auto Hatch
+local AutoHatchEnabled = false
+local autoHatchConnection = nil
+local ExcludeDinosaurEgg = true -- Default to exclude dinosaur eggs
+
+-- Function to find and hatch ready eggs in the farm
+local function hatchReadyEggs()
+    if not AutoHatchEnabled then return end
+    
+    -- Get required services
+    local CollectionService = Services.CollectionService
+    local ReplicatedStorage = Services.ReplicatedStorage
+    local LocalPlayer = Services.Players.LocalPlayer
+    
+    -- Find PetEggService remote
+    local PetEggService = ReplicatedStorage.GameEvents:FindFirstChild("PetEggService")
+    if not PetEggService then
+        print("❌ PetEggService remote not found!")
+        return
+    end
+    
+    -- Find all PetEggServer objects (eggs in the farm)
+    local eggs = CollectionService:GetTagged("PetEggServer")
+    local readyEggs = {}
+    
+    -- Filter for eggs that are ready to hatch and owned by the player
+    for _, egg in pairs(eggs) do
+        if egg:GetAttribute("OWNER") == LocalPlayer.Name and egg:GetAttribute("READY") then
+            local eggName = egg:GetAttribute("EggName") or "Unknown Egg"
+            
+            -- Check if we should exclude dinosaur eggs
+            if ExcludeDinosaurEgg and eggName == "Dinosaur Egg" then
+                print("⏭️ Skipping Dinosaur Egg (excluded by setting)")
+            else
+                table.insert(readyEggs, egg)
+            end
+        end
+    end
+    
+    -- Hatch all ready eggs
+    if #readyEggs > 0 then
+        print("🥚 Found " .. #readyEggs .. " ready eggs to hatch!")
+        
+        for _, egg in pairs(readyEggs) do
+            if AutoHatchEnabled then -- Check if still enabled
+                local eggName = egg:GetAttribute("EggName") or "Unknown Egg"
+                print("🐣 Hatching egg:", eggName)
+                
+                -- Use the same remote as the game's hatch system
+                local success, result = pcall(function()
+                    PetEggService:FireServer("HatchPet", egg)
+                end)
+                
+                if success then
+                    Library:Notify("🐣 Hatched " .. eggName .. "!", 2)
+                else
+                    print("❌ Failed to hatch egg:", result)
+                end
+                
+                task.wait(0.5) -- Small delay between hatches to avoid rate limiting
+            end
+        end
+    end
+end
+
+-- Auto Hatch toggle
+DinoGroupBox:AddToggle("AutoHatch", {
+    Text = "Auto Hatch",
+    Tooltip = "Automatically hatch eggs when they're ready (when READY attribute is checked)",
+    Default = false,
+    Callback = function(Value)
+        AutoHatchEnabled = Value
+        
+        if Value then
+            Library:Notify("🥚 Auto Hatch enabled! Will hatch eggs when ready.", 3)
+            
+            -- Start the auto hatch loop
+            autoHatchConnection = task.spawn(function()
+                while AutoHatchEnabled do
+                    hatchReadyEggs()
+                    task.wait(2) -- Check every 2 seconds for ready eggs
+                end
+            end)
+        else
+            Library:Notify("❌ Auto Hatch disabled!", 2)
+            
+            -- Stop the auto hatch loop
+            if autoHatchConnection then
+                task.cancel(autoHatchConnection)
+                autoHatchConnection = nil
+            end
+        end
+    end
+})
+
+-- Exclude Dinosaur Egg toggle
+DinoGroupBox:AddToggle("ExcludeDinosaurEgg", {
+    Text = "Exclude Dinosaur Egg from Auto Hatch",
+    Tooltip = "When enabled, auto hatch will skip Dinosaur Eggs and only hatch other egg types",
+    Default = true, -- Default to excluding dinosaur eggs
+    Callback = function(Value)
+        ExcludeDinosaurEgg = Value
+        
+        if Value then
+            Library:Notify("🦕 Dinosaur Eggs will be excluded from auto hatch!", 2)
+        else
+            Library:Notify("🥚 Dinosaur Eggs will now be included in auto hatch!", 2)
+        end
+    end
+})
+
+-- ================================================================
+-- AUTO DINO MACHINE INTERACTION SYSTEM
+-- ================================================================
+
+-- Global variables for Auto Dino Machine
+local AutoDinoMachineEnabled = false
+local autoDinoMachineConnection = nil
+local SelectedPetsForDino = {}
+
+-- Dino pets list (these should NOT be selected for dino machine)
+local dinoPets = {"Raptor", "Triceratops", "Stegosaurus", "Pterodactyl", "Brontosaurus", "T-Rex"}
+
+-- Function to get all non-dino pets available in the game (not just inventory)
+local function getAllNonDinoPets()
+    -- All pets available in the game (from PetRegistry) excluding dino pets
+    local allGamePets = {
+        -- Basic Pets
+        "Dog", "Golden Lab", "Bunny", "Black Bunny", "Cat", "Orange Tabby", 
+        "Deer", "Spotted Deer", "Monkey", "Silver Monkey", "Chicken", "Rooster", 
+        "Pig", "Turtle", "Cow",
+        
+        -- Rare & Mythical Pets
+        "Snail", "Giant Ant", "Dragonfly", "Polar Bear", "Panda", "Sea Otter", 
+        "Caterpillar", "Praying Mantis", "Hedgehog", "Kiwi", "Mole", "Frog", 
+        "Echo Frog", "Owl", "Night Owl", "Raccoon", "Grey Mouse", "Squirrel", 
+        "Brown Mouse", "Red Giant Ant", "Red Fox",
+        
+        -- Event/Special Pets
+        "Chicken Zombie", "Blood Hedgehog", "Blood Kiwi", "Blood Owl", "Moon Cat",
+        
+        -- Flying/Bee Pets
+        "Bee", "Honey Bee", "Petal Bee", "Golden Bee", "Bear Bee", "Queen Bee", 
+        "Wasp", "Tarantula Hawk", "Moth", "Butterfly", "Disco Bee", "Pack Bee",
+        
+        -- Other Flying Pets
+        "Firefly", "Red Dragon", "Cooked Owl",
+        
+        -- Aquatic Pets
+        "Starfish", "Crab", "Seagull", "Toucan", "Flamingo", "Sea Turtle", "Seal",
+        
+        -- Land Animals
+        "Orangutan", "Peacock", "Capybara", "Scarlet Macaw", "Ostrich", 
+        "Mimic Octopus", "Meerkat", "Sand Snake", "Axolotl", "Hyacinth Macaw", 
+        "Fennec Fox", "Hamster"
+    }
+    
+    -- Create a lookup table for dino pets to exclude them
+    local dinoPetLookup = {}
+    for _, dinoPet in pairs(dinoPets) do
+        dinoPetLookup[dinoPet] = true
+    end
+    
+    -- Filter out dino pets and return the rest
+    local nonDinoPets = {}
+    for _, petType in pairs(allGamePets) do
+        if not dinoPetLookup[petType] then
+            table.insert(nonDinoPets, petType)
+        end
+    end
+    
+    table.sort(nonDinoPets) -- Sort alphabetically for better UI
+    return nonDinoPets
+end
+
+-- Function to check if dino machine trade is empty (not running/trading)
+local function isDinoMachineEmpty()
+    local success, isEmpty = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local data = DataService:GetData()
+        
+        if not data or not data.DinoMachine then
+            return true -- If no data, assume it's empty
+        end
+        
+        -- Machine is empty if it's not running and not processing a reward
+        return not data.DinoMachine.IsRunning and not data.DinoMachine.RewardReady
+    end)
+    
+    return success and isEmpty
+end
+
+-- Function to find and equip selected pets
+local function equipSelectedPetsForDino()
+    if #SelectedPetsForDino == 0 then
+        return false
+    end
+    
+    local success, equipped = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local PetsService = require(Services.ReplicatedStorage.Modules.PetServices.PetsService)
+        local data = DataService:GetData()
+        
+        if not data or not data.PetsData or not data.PetsData.PetInventory then
+            return false
+        end
+        
+        -- Find pets in inventory that match selected types
+        local petsToEquip = {}
+        for petUUID, petData in pairs(data.PetsData.PetInventory.Data) do
+            if petData and petData.PetType then
+                for _, selectedType in pairs(SelectedPetsForDino) do
+                    if petData.PetType == selectedType then
+                        table.insert(petsToEquip, {uuid = petUUID, type = petData.PetType})
+                        break
+                    end
+                end
+            end
+        end
+        
+        if #petsToEquip == 0 then
+            return false
+        end
+        
+        -- Try to equip pets (up to available slots)
+        local equippedCount = 0
+        for i, pet in pairs(petsToEquip) do
+            if i <= 6 then -- Max 6 pet slots typically
+                local equipSuccess = pcall(function()
+                    PetsService:EquipPet(pet.uuid, i)
+                end)
+                
+                if equipSuccess then
+                    equippedCount = equippedCount + 1
+                    print("✅ Equipped pet:", pet.type, "UUID:", pet.uuid)
+                else
+                    print("❌ Failed to equip pet:", pet.type)
+                end
+                
+                task.wait(0.2) -- Small delay between equips
+            end
+        end
+        
+        return equippedCount > 0
+    end)
+    
+    return success and equipped
+end
+
+-- Function to interact with dino machine
+local function interactWithDinoMachine()
+    if not AutoDinoMachineEnabled then return end
+    
+    -- Check if dino machine is empty first
+    if not isDinoMachineEmpty() then
+        print("⏳ Dino machine is currently running/trading, skipping interaction")
+        return
+    end
+    
+    print("🦕 Dino machine is empty, attempting interaction...")
+    
+    -- Try to equip selected pets first
+    local petsEquipped = equipSelectedPetsForDino()
+    if not petsEquipped then
+        print("⚠️ No selected pets found in inventory to equip for dino machine")
+        return
+    end
+    
+    -- Wait a moment for pets to be equipped
+    task.wait(1)
+    
+    -- Fire the dino machine interaction
+    local success, result = pcall(function()
+        local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents.DinoMachineService_RE
+        DinoMachineService_RE:FireServer("MachineInteract")
+    end)
+    
+    if success then
+        print("✅ Successfully interacted with dino machine!")
+        Library:Notify("🦕 Interacted with dino machine!", 2)
+    else
+        print("❌ Failed to interact with dino machine:", result)
+    end
+end
+
+-- Pet selection dropdown for dino machine
+DinoGroupBox:AddDropdown("DinoMachinePets", {
+    Values = getAllNonDinoPets(),
+    Default = 1,
+    Multi = true, -- Allow multiple pet selection
+    Text = "Select Non-Dino Pets",
+    Tooltip = "Choose which non-dino pets to equip and use for dino machine interaction",
+    
+    Callback = function(Value)
+        SelectedPetsForDino = {}
+        if Value then
+            for petName, isSelected in pairs(Value) do
+                if isSelected then
+                    table.insert(SelectedPetsForDino, petName)
+                end
+            end
+        end
+        print("[Dino Machine] Selected pets:", table.concat(SelectedPetsForDino, ", "))
+    end,
+})
+
+-- Refresh pets button
+DinoGroupBox:AddButton("🔄 Refresh Pet List", function()
+    local availablePets = getAllNonDinoPets()
+    
+    if #availablePets > 0 then
+        getgenv().Library.Options.DinoMachinePets:SetValues(availablePets)
+        Library:Notify("🔄 Found " .. #availablePets .. " non-dino pets!", 2)
+    else
+        getgenv().Library.Options.DinoMachinePets:SetValues({"No non-dino pets found"})
+        Library:Notify("❌ No non-dino pets found", 3)
+    end
+end)
+
+-- Auto dino machine interaction toggle
+DinoGroupBox:AddToggle("AutoDinoMachine", {
+    Text = "Auto Dino Machine",
+    Tooltip = "Automatically equip selected pets and interact with dino machine when it's empty",
+    Default = false,
+    Callback = function(Value)
+        AutoDinoMachineEnabled = Value
+        
+        if Value then
+            if #SelectedPetsForDino == 0 then
+                Library:Notify("⚠️ Please select pets first!", 3)
+                task.wait(0.1)
+                if getgenv().Library.Toggles and getgenv().Library.Toggles.AutoDinoMachine then
+                    getgenv().Library.Toggles.AutoDinoMachine:SetValue(false)
+                end
+                return
+            end
+            
+            Library:Notify("🦕 Auto Dino Machine enabled! Will equip pets and interact when machine is empty.", 3)
+            
+            -- Start the auto dino machine loop
+            autoDinoMachineConnection = task.spawn(function()
+                while AutoDinoMachineEnabled do
+                    interactWithDinoMachine()
+                    task.wait(5) -- Check every 5 seconds
+                end
+            end)
+        else
+            Library:Notify("❌ Auto Dino Machine disabled!", 2)
+            
+            -- Stop the auto dino machine loop
+            if autoDinoMachineConnection then
+                task.cancel(autoDinoMachineConnection)
+                autoDinoMachineConnection = nil
+            end
+        end
+    end
+})
+
+-- ================================================================
+-- SUCCESS MESSAGE
+-- ================================================================
+print("✅ Event Tab loaded successfully!")
+Library:Notify("🎯 Event Tab integrated! Dino features are ready.", 3)
+
+return true -- Return success
