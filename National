@@ -8,8 +8,50 @@ local function waitForMainScript()
     local maxWait = 30 -- Maximum 30 seconds
     local waited = 0
     
-    while waited < maxWait do
-        -- Check multiple possible global locations
+    while wai-- Helper function to get current pet selection from dropdown
+local function getCurrentPetSelection()
+    local currentSelection = {}
+    
+    -- Try to get from Options.PetSelection.Value (preferred method)
+    if Options and Options.PetSelection and Options.PetSelection.Value then
+        for petName, isSelected in pairs(Options.PetSelection.Value) do
+            if isSelected then
+                table.insert(currentSelection, petName)
+            end
+        end
+        print("[helper] Got", #currentSelection, "pets from Options.PetSelection.Value")
+    else
+        -- Fallback to global SelectedPetsToGive
+        for _, petName in pairs(SelectedPetsToGive) do
+            table.insert(currentSelection, petName)
+        end
+        print("[helper] Got", #currentSelection, "pets from SelectedPetsToGive fallback")
+    end
+    
+    return currentSelection
+end
+
+-- Get available pets for the current selection
+local function getAvailableSelectedPets()
+    local currentSelection = getCurrentPetSelection()
+    local availablePets = {}
+    local missingPets = {}
+    
+    for _, petType in pairs(currentSelection) do
+        local foundPets = findPlayerPetsByType(petType)
+        if #foundPets > 0 then
+            table.insert(availablePets, {
+                petType = petType,
+                count = #foundPets,
+                pets = foundPets
+            })
+        else
+            table.insert(missingPets, petType)
+        end
+    end
+    
+    return availablePets, missingPets
+end      -- Check multiple possible global locations
         local Library = getgenv and getgenv().Library or _G.Library
         local Window = getgenv and getgenv().Window or _G.Window
         local Tabs = getgenv and getgenv().Tabs or _G.Tabs
@@ -46,7 +88,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- CREATE EVENT TAB
 -- ================================================================
-local EventTab = Window:AddTab("Event", "calendar")
+local EventTab = Window:AddTab("Eventv2", "calendar")
 
 -- ================================================================
 -- AUTO HATCH SYSTEM
@@ -482,49 +524,43 @@ DinoMachineGroupBox:AddDropdown("PetSelection", {
     Text = "Select Pets to Give",
     Tooltip = "Choose which pets to automatically equip and give to dino machine (multi-select)",
     Callback = function(Value)
+        print("[cb] Pet dropdown callback triggered")
         print("[cb] RAW Value received:", Value, "Type:", type(Value))
         
+        -- Clear previous selection
         SelectedPetsToGive = {}
         
-        -- Handle different possible value formats
-        if Value == nil then
-            print("[cb] Value is nil!")
-            return
-        end
-        
-        if type(Value) == "string" then
-            -- Single string value
-            table.insert(SelectedPetsToGive, Value)
-            print("[cb] Added single string:", Value)
-        elseif type(Value) == "table" then
-            print("[cb] Value is table with", #Value, "items")
+        -- For multi-select dropdowns, we need to access Options.PetSelection.Value
+        -- which contains the actual selected items as {PetName = true, ...}
+        if Options and Options.PetSelection and Options.PetSelection.Value then
+            print("[cb] Accessing Options.PetSelection.Value:")
             
-            -- Print table contents for debugging
-            for i, v in pairs(Value) do
-                print("[cb] Table item", i, "=", v, "type:", type(v))
-            end
-            
-            for _, v in pairs(Value) do
-                if type(v) == "number" then
-                    -- v is an index, get the pet name from AllPets
-                    if AllPets[v] then
-                        table.insert(SelectedPetsToGive, AllPets[v])
-                        print("[cb] Added by index:", v, "->", AllPets[v])
-                    end
-                elseif type(v) == "string" then
-                    -- v is already a pet name
-                    table.insert(SelectedPetsToGive, v)
-                    print("[cb] Added string:", v)
+            for petName, isSelected in pairs(Options.PetSelection.Value) do
+                if isSelected then
+                    table.insert(SelectedPetsToGive, petName)
+                    print("[cb] Added selected pet:", petName)
                 end
             end
-        elseif type(Value) == "number" then
-            -- Single number index
-            if AllPets[Value] then
-                table.insert(SelectedPetsToGive, AllPets[Value])
-                print("[cb] Added by single index:", Value, "->", AllPets[Value])
-            end
         else
-            print("[cb] Unknown value type:", type(Value))
+            print("[cb] ERROR: Could not access Options.PetSelection.Value")
+            print("[cb] Options exists:", Options ~= nil)
+            if Options then
+                print("[cb] Options.PetSelection exists:", Options.PetSelection ~= nil)
+                if Options.PetSelection then
+                    print("[cb] Options.PetSelection.Value exists:", Options.PetSelection.Value ~= nil)
+                end
+            end
+            
+            -- Fallback to handle the Value parameter directly
+            print("[cb] Using fallback handling for Value parameter")
+            if type(Value) == "table" then
+                for petName, isSelected in pairs(Value) do
+                    if isSelected then
+                        table.insert(SelectedPetsToGive, petName)
+                        print("[cb] Added pet from Value table:", petName)
+                    end
+                end
+            end
         end
         
         print("[cb] Final Selected pets to give:", table.concat(SelectedPetsToGive, ", "))
@@ -561,14 +597,17 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
     Callback = function(Value)
         AutoGiveEnabled = Value
         print("[cb] Auto Give toggled:", Value)
-        print("[cb] Current SelectedPetsToGive:", table.concat(SelectedPetsToGive, ", "))
-        print("[cb] SelectedPetsToGive count:", #SelectedPetsToGive)
+        
+        -- Get current selection using helper function
+        local currentSelection = getCurrentPetSelection()
+        print("[cb] Current pet selection:", table.concat(currentSelection, ", "))
+        print("[cb] Selected pet count:", #currentSelection)
         
         if Value then
             -- Check if any pets are selected
-            if #SelectedPetsToGive == 0 then
+            if #currentSelection == 0 then
                 Library:Notify("⚠️ Please select pets to give first!", 3)
-                print("[cb] ERROR: No pets selected - SelectedPetsToGive is empty")
+                print("[cb] ERROR: No pets selected")
                 task.wait(0.1)
                 if Toggles and Toggles.AutoGive then
                     Toggles.AutoGive:SetValue(false)
@@ -576,8 +615,20 @@ DinoMachineGroupBox:AddToggle("AutoGive", {
                 return
             end
             
+            -- Update global selection for consistency
+            SelectedPetsToGive = currentSelection
+            
             -- Check inventory for selected pets
             local availablePets, missingPets = getAvailableSelectedPets()
+            
+            if #availablePets == 0 then
+                Library:Notify("❌ None of the selected pets are in your inventory!", 4)
+                task.wait(0.1)
+                if Toggles and Toggles.AutoGive then
+                    Toggles.AutoGive:SetValue(false)
+                end
+                return
+            end
             
             if #availablePets == 0 then
                 Library:Notify("❌ None of the selected pets are in your inventory!", 4)
