@@ -776,7 +776,6 @@ end
 local function findAndEquipCarrotSeed()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then 
-        print("❌ No backpack found")
         return false 
     end
 
@@ -789,7 +788,6 @@ local function findAndEquipCarrotSeed()
                 
                 -- Check if the equipped item is a carrot seed
                 if string.find(cleanName:lower(), "carrot") and string.find(cleanName:lower(), "seed") then
-                    print("✅ Carrot seed already equipped:", itemName)
                     return true
                 end
             end
@@ -808,7 +806,6 @@ local function findAndEquipCarrotSeed()
     for _, possibleName in ipairs(possibleNames) do
         carrotSeedTool = backpack:FindFirstChild(possibleName)
         if carrotSeedTool then
-            print("✅ Found exact carrot seed match:", possibleName)
             break
         end
     end
@@ -823,7 +820,6 @@ local function findAndEquipCarrotSeed()
                 -- Check if this item is a carrot seed
                 if string.find(cleanName:lower(), "carrot") and string.find(cleanName:lower(), "seed") then
                     carrotSeedTool = item
-                    print("✅ Found carrot seed partial match:", itemName)
                     break
                 end
             end
@@ -832,12 +828,10 @@ local function findAndEquipCarrotSeed()
 
     -- Equip the carrot seed tool
     if carrotSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        print("🔧 Equipping carrot seed:", carrotSeedTool.Name)
         LocalPlayer.Character.Humanoid:EquipTool(carrotSeedTool)
         task.wait(0.5)
         return true
     else
-        print("❌ No carrot seeds found in backpack")
         return false
     end
 end
@@ -893,18 +887,14 @@ local function plantCarrot()
             end)
             
             if success then
-                print("✅ Successfully planted carrot at position:", plantPosition)
                 return true
             else
-                print("❌ Failed to plant carrot")
                 return false
             end
         else
-            print("❌ Plant_RE remote event not found")
             return false
         end
     else
-        print("❌ No planting position available")
         return false
     end
 end
@@ -992,18 +982,14 @@ local function plantMango()
             end)
             
             if success then
-                print("✅ Successfully planted mango at position:", plantPosition)
                 return true
             else
-                print("❌ Failed to plant mango")
                 return false
             end
         else
-            print("❌ Plant_RE remote event not found")
             return false
         end
     else
-        print("❌ No planting position available")
         return false
     end
 end
@@ -1230,18 +1216,14 @@ local function plantWatermelon()
             end)
             
             if success then
-                print("✅ Successfully planted watermelon at position:", plantPosition)
                 return true
             else
-                print("❌ Failed to plant watermelon")
                 return false
             end
         else
-            print("❌ Plant_RE remote event not found")
             return false
         end
     else
-        print("❌ No planting position available")
         return false
     end
 end
@@ -1258,18 +1240,14 @@ local function plantPumpkin()
             end)
             
             if success then
-                print("✅ Successfully planted pumpkin at position:", plantPosition)
                 return true
             else
-                print("❌ Failed to plant pumpkin")
                 return false
             end
         else
-            print("❌ Plant_RE remote event not found")
             return false
         end
     else
-        print("❌ No planting position available")
         return false
     end
 end
@@ -1286,18 +1264,14 @@ local function plantBamboo()
             end)
             
             if success then
-                print("✅ Successfully planted bamboo at position:", plantPosition)
                 return true
             else
-                print("❌ Failed to plant bamboo")
                 return false
             end
         else
-            print("❌ Plant_RE remote event not found")
             return false
         end
     else
-        print("❌ No planting position available")
         return false
     end
 end
@@ -1322,9 +1296,6 @@ local function performAutoQuest()
         local quest = carrotQuest.quest
         local displayData = carrotQuest.displayData
         
-        print("🥕 Found carrot planting quest:", displayData.Title)
-        print("🥕 Progress:", quest.Progress or 0, "/", quest.Target or 100)
-        
         if not quest.Completed then
             if findAndEquipCarrotSeed() then
                 if plantCarrot() then
@@ -1335,8 +1306,6 @@ local function performAutoQuest()
             else
                 Library:Notify("❌ Need carrot seeds in inventory!", 3)
             end
-        else
-            print("✅ Carrot quest already completed!")
         end
         return
     end
@@ -1348,9 +1317,6 @@ local function performAutoQuest()
         local quest = bambooQuest.quest
         local displayData = bambooQuest.displayData
         
-        print("🎋 Found bamboo planting quest:", displayData.Title)
-        print("🎋 Progress:", quest.Progress or 0, "/", quest.Target or 25)
-        
         if not quest.Completed then
             if findAndEquipBambooSeed() then
                 if plantBamboo() then
@@ -1361,8 +1327,6 @@ local function performAutoQuest()
             else
                 Library:Notify("❌ Need bamboo seeds in inventory!", 3)
             end
-        else
-            print("✅ Bamboo quest already completed!")
         end
         return
     end
@@ -1374,9 +1338,6 @@ local function performAutoQuest()
         local quest = watermelonQuest.quest
         local displayData = watermelonQuest.displayData
         
-        print("🍉 Found watermelon planting quest:", displayData.Title)
-        print("🍉 Progress:", quest.Progress or 0, "/", quest.Target or 10)
-        
         if not quest.Completed then
             if findAndEquipWatermelonSeed() then
                 if plantWatermelon() then
@@ -1387,8 +1348,6 @@ local function performAutoQuest()
             else
                 Library:Notify("❌ Need watermelon seeds in inventory!", 3)
             end
-        else
-            print("✅ Watermelon quest already completed!")
         end
         return
     end
@@ -1400,9 +1359,6 @@ local function performAutoQuest()
         local quest = pumpkinQuest.quest
         local displayData = pumpkinQuest.displayData
         
-        print("🎃 Found pumpkin planting quest:", displayData.Title)
-        print("🎃 Progress:", quest.Progress or 0, "/", quest.Target or 5)
-        
         if not quest.Completed then
             if findAndEquipPumpkinSeed() then
                 if plantPumpkin() then
@@ -1413,8 +1369,6 @@ local function performAutoQuest()
             else
                 Library:Notify("❌ Need pumpkin seeds in inventory!", 3)
             end
-        else
-            print("✅ Pumpkin quest already completed!")
         end
         return
     end
@@ -1425,9 +1379,6 @@ local function performAutoQuest()
     if mangoQuest then
         local quest = mangoQuest.quest
         local displayData = mangoQuest.displayData
-        
-        print("🥭 Found mango planting quest:", displayData.Title)
-        print("🥭 Progress:", quest.Progress or 0, "/", quest.Target or 1)
         
         if not quest.Completed then
             if findAndEquipMangoSeed() then
@@ -1443,14 +1394,11 @@ local function performAutoQuest()
             else
                 Library:Notify("❌ Need mango seeds in inventory!", 3)
             end
-        else
-            print("✅ Mango quest already completed!")
         end
         return
     end
     
     -- No relevant quests found
-    print("⏳ No plant quests found - waiting for prehistoric plant quests...")
     if currentTime % 30 < 2 then
         Library:Notify("⏳ Waiting for plant quests...", 2)
     end
@@ -1466,15 +1414,14 @@ AutoQuestGroupBox:AddToggle("AutoQuest", {
         print("[cb] Auto Quest toggled:", Value)
         
         if Value then
-            Library:Notify("🥕🎋🍉🎃🥭 Auto Plant Quests enabled!", 3)
-            print("🥕🎋🍉🎃🥭 Auto Quest started - looking for all plant quests...")
+            Library:Notify("Auto Plant On.", 3)
             
             -- Start auto quest loop
             autoQuestConnection = Services.RunService.Heartbeat:Connect(function()
                 performAutoQuest()
             end)
         else
-            Library:Notify("🥕🎋🍉🎃🥭 Auto Plant Quests disabled!", 3)
+            Library:Notify("Auto Plant Off.", 3)
             
             -- Stop auto quest loop
             if autoQuestConnection then
@@ -1659,6 +1606,32 @@ local lastHarvestQuestCheck = 0
 -- Variables for quest-specific plant filtering (ULTRA SAFE)
 local QuestTargetCrops = {}
 
+-- Function to enable noclip for safe teleportation
+local function enableNoclip()
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                if part.Name ~= "HumanoidRootPart" then
+                    part.Massless = true
+                end
+            end
+        end
+    end
+end
+
+-- Function to disable noclip and restore physics
+local function disableNoclip()
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = true
+                part.Massless = false
+            end
+        end
+    end
+end
+
 -- Function to get player's farm with ULTRA SAFE verification
 local function getMyFarmUltraSafe()
     for _, farm in workspace.Farm:GetChildren() do
@@ -1666,20 +1639,16 @@ local function getMyFarmUltraSafe()
         if important then
             local data = important:FindFirstChild("Data")
             if data and data:FindFirstChild("Owner") and data.Owner.Value == LocalPlayer.Name then
-                -- ULTRA SAFETY: Double-check this is actually our farm
-                print("✅ ULTRA SAFE: Verified farm ownership for", LocalPlayer.Name)
                 return farm
             end
         end
     end
-    print("❌ ULTRA SAFETY: Could not find player's farm")
     return nil
 end
 
 -- Function to extract plant type from name (ULTRA SAFE)
 local function getPlantTypeFromNameUltraSafe(plantName)
     if not plantName or type(plantName) ~= "string" then
-        print("❌ ULTRA SAFETY: Invalid plant name provided")
         return nil
     end
     
@@ -1690,14 +1659,12 @@ local function getPlantTypeFromNameUltraSafe(plantName)
     cleanName = string.gsub(cleanName, " Seed$", "")   -- Remove " Seed" suffix
     cleanName = cleanName:gsub("^%s+", ""):gsub("%s+$", "") -- Trim whitespace
     
-    print("🔍 ULTRA SAFE: Cleaned plant name:", plantName, "->", cleanName)
     return cleanName
 end
 
 -- Function to equip harvest tool with ULTRA SAFE checks
 local function equipHarvestToolUltraSafe()
     -- ULTRA SAFETY: No harvest tool needed - just use proximity prompts directly
-    print("🔧 ULTRA SAFE: No harvest tool required - using direct proximity prompts")
     return true
 end
 
@@ -1723,19 +1690,16 @@ end
 local function harvestPlantUltraSafe(plant, plantType)
     -- ULTRA SAFETY CHECK 1: Verify the plant object is valid and stable
     if not plant or not plant.Parent then
-        print("❌ ULTRA SAFETY: Plant object invalid or already removed")
         return false
     end
 
     local prompt = plant:FindFirstChild("ProximityPrompt", true)
     if not prompt then
-        print("❌ ULTRA SAFETY: No ProximityPrompt found on plant")
         return false
     end
 
     -- Ensure we have a character and root part
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        print("❌ ULTRA SAFETY: Character not ready for harvest")
         return false
     end
 
@@ -1747,13 +1711,13 @@ local function harvestPlantUltraSafe(plant, plantType)
     local targetPrompt = prompt
     local plantUID = tostring(plant) -- Unique object reference
 
-    print("🎯 ULTRA SAFE HARVEST: Targeting", targetPlantName, "at", targetPlantPosition, "UID:", plantUID)
-
     -- ULTRA SAFETY CHECK 3: Verify this plant is in our quest target crops
     if not QuestTargetCrops[plantType] then
-        print("❌ ULTRA SAFETY: Plant", targetPlantName, "is NOT in quest target crops - ABORTING")
         return false
     end
+
+    -- Enable noclip for safe teleportation (prevents flings)
+    enableNoclip()
 
     -- Get optimal position near the plant
     local plantPosition = plant:GetPivot().Position
@@ -1761,23 +1725,22 @@ local function harvestPlantUltraSafe(plant, plantType)
 
     -- ULTRA SAFETY CHECK 4: Verify plant hasn't moved before teleporting
     if (plant:GetPivot().Position - targetPlantPosition).Magnitude > 0.1 then
-        print("❌ ULTRA SAFETY: Plant moved since identification - ABORTING")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
     -- Teleport to optimal position for collection (EXACT REFACRORMAIN method)
-    print("🚀 ULTRA SAFE: Teleporting to", optimalPosition)
     LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(optimalPosition)
     task.wait(0.5) -- Wait for teleport to register properly (EXACT timing from REFACRORMAIN)
 
     -- ULTRA SAFETY CHECK 5: Verify plant still exists and hasn't changed after teleport
     if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
-        print("❌ ULTRA SAFETY: Target plant disappeared or moved after teleport - ABORTING")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
     if targetPlant.Name ~= targetPlantName or tostring(targetPlant) ~= plantUID then
-        print("❌ ULTRA SAFETY: Plant reference changed after teleport - ABORTING")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
@@ -1789,24 +1752,24 @@ local function harvestPlantUltraSafe(plant, plantType)
     -- ULTRA SAFETY CHECK 6: Verify distance to target plant is reasonable
     local currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
     if currentDistance > 8 then
-        print("❌ ULTRA SAFETY: Too far from target plant after positioning! Distance:", currentDistance)
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
     -- ULTRA SAFETY CHECK 7: Re-verify the plant after positioning
     if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
-        print("❌ ULTRA SAFETY: Target plant disappeared after positioning - ABORTING")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
     if targetPlant.Name ~= targetPlantName then
-        print("❌ ULTRA SAFETY: Plant name changed after positioning - ABORTING")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
     -- Check if prompt is still enabled after positioning
     if not prompt.Enabled then
-        print("❌ ULTRA SAFETY: ProximityPrompt disabled after positioning")
+        disableNoclip() -- Restore physics before returning
         return false
     end
 
@@ -1817,23 +1780,18 @@ local function harvestPlantUltraSafe(plant, plantType)
     for attempt = 1, maxAttempts do
         -- ULTRA SAFETY CHECK 8: Re-verify target before each attempt
         if not targetPlant or not targetPlant.Parent then
-            print("❌ ULTRA SAFETY: Target plant no longer exists at attempt", attempt)
             break
         end
 
         if targetPlant.Name ~= targetPlantName or tostring(targetPlant) ~= plantUID then
-            print("❌ ULTRA SAFETY: Plant reference corrupted at attempt", attempt)
             break
         end
 
         -- ULTRA SAFETY CHECK 9: Verify we're still close to the EXACT target
         local attemptDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
         if attemptDistance > 10 then
-            print("❌ ULTRA SAFETY: Moved too far from target at attempt", attempt, "Distance:", attemptDistance)
             break
         end
-
-        print("🔄 ULTRA SAFE: Harvest attempt", attempt, "on", targetPlantName)
 
         local attemptSuccess = pcall(function()
             -- ULTRA SAFETY CHECK 10: Triple-verify before firing prompt
@@ -1864,11 +1822,8 @@ local function harvestPlantUltraSafe(plant, plantType)
             -- Check if the SPECIFIC plant/fruit still exists (successful collection removes it)
             if not targetPlant.Parent then
                 success = true
-                print("✅ ULTRA SAFE: Successfully harvested target plant:", targetPlantName, "UID:", plantUID)
                 break
             end
-        else
-            print("⚠️ ULTRA SAFE: Attempt", attempt, "failed safety checks for", targetPlantName)
         end
 
         -- If not successful and not the last attempt, try repositioning
@@ -1879,7 +1834,6 @@ local function harvestPlantUltraSafe(plant, plantType)
                 LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(retryPosition)
                 task.wait(0.2)
             else
-                print("❌ ULTRA SAFETY: Target invalid for repositioning, stopping attempts")
                 break
             end
         end
@@ -1888,10 +1842,10 @@ local function harvestPlantUltraSafe(plant, plantType)
     -- Final check - if the SPECIFIC target plant is gone, collection was successful
     if not targetPlant.Parent then
         success = true
-        print("✅ ULTRA SAFE: Confirmed successful harvest of", targetPlantName)
-    else
-        print("❌ ULTRA SAFE: Failed to harvest", targetPlantName, "after", maxAttempts, "attempts")
     end
+
+    -- Always restore physics after harvesting (CRITICAL)
+    disableNoclip()
 
     return success
 end
@@ -1900,7 +1854,6 @@ end
 local function findAndHarvestCropUltraSafe(cropType, questInfo)
     local myFarm = getMyFarmUltraSafe()
     if not myFarm then
-        print("❌ ULTRA SAFETY: Could not find player's farm")
         return false
     end
 
@@ -1912,20 +1865,17 @@ local function findAndHarvestCropUltraSafe(cropType, questInfo)
 
     local important = myFarm:FindFirstChild("Important")
     if not important then
-        print("❌ ULTRA SAFETY: Farm Important folder not found")
         return false
     end
 
     -- Double-check this is actually our farm by verifying owner
     local data = important:FindFirstChild("Data")
     if not data or not data:FindFirstChild("Owner") or data.Owner.Value ~= LocalPlayer.Name then
-        print("❌ ULTRA SAFETY: Farm ownership verification failed")
         return false
     end
 
     local plantsPhysical = important:FindFirstChild("Plants_Physical")
     if not plantsPhysical then
-        print("❌ ULTRA SAFETY: Plants_Physical folder not found")
         return false
     end
 
@@ -1935,7 +1885,6 @@ local function findAndHarvestCropUltraSafe(cropType, questInfo)
     for _, plant in pairs(plantsPhysical:GetChildren()) do
         -- ULTRA SAFETY: Check if auto harvest is still enabled
         if not AutoHarvestEnabled then
-            print("❌ ULTRA SAFETY: Auto harvest was disabled during operation")
             break
         end
 
@@ -1944,10 +1893,7 @@ local function findAndHarvestCropUltraSafe(cropType, questInfo)
             -- ULTRA SAFETY: Verify this plant type is in our quest targets
             local plantType = getPlantTypeFromNameUltraSafe(plant.Name)
             if plantType and QuestTargetCrops[plantType] then
-                print("✅ ULTRA SAFE: Found valid quest target:", plant.Name)
                 table.insert(foundCrops, plant)
-            else
-                print("⏭️ ULTRA SAFETY: Skipping non-quest plant:", plant.Name)
             end
         end
         
@@ -1961,36 +1907,28 @@ local function findAndHarvestCropUltraSafe(cropType, questInfo)
                     if fruit.Name == cropType and canHarvestUltraSafe(fruit) then
                         local fruitType = getPlantTypeFromNameUltraSafe(fruit.Name)
                         if fruitType and QuestTargetCrops[fruitType] then
-                            print("✅ ULTRA SAFE: Found valid quest fruit:", fruit.Name)
                             table.insert(foundCrops, fruit)
                         end
                     end
                 end
-            else
-                print("⏭️ ULTRA SAFETY: Skipping fruits from non-quest plant:", plant.Name)
             end
         end
     end
 
     if #foundCrops == 0 then
-        print("❌ ULTRA SAFETY: No valid quest crops of type", cropType, "found on farm")
         return false
     end
-
-    print("🌾 ULTRA SAFE: Found", #foundCrops, "valid quest crops of type", cropType)
 
     -- Harvest the first available crop with ULTRA SAFE verification
     local crop = foundCrops[1]
     
     -- FINAL ULTRA SAFETY CHECK: Verify crop is still valid before harvest
     if not crop or not crop.Parent then
-        print("❌ ULTRA SAFETY: Crop disappeared before harvest attempt")
         return false
     end
     
     local cropType = getPlantTypeFromNameUltraSafe(crop.Name)
     if not cropType or not QuestTargetCrops[cropType] then
-        print("❌ ULTRA SAFETY: Crop no longer in quest targets before harvest")
         return false
     end
     
@@ -2000,7 +1938,7 @@ local function findAndHarvestCropUltraSafe(cropType, questInfo)
         local quest = questInfo.quest
         local progress = quest.Progress or 0
         local target = quest.Target or 1
-        Library:Notify("🌾 ULTRA SAFE: Harvested " .. cropType .. "! Progress: " .. (progress + 1) .. "/" .. target, 2)
+        Library:Notify("🌾 Harvested " .. cropType .. "! Progress: " .. (progress + 1) .. "/" .. target, 2)
         return true
     end
 
@@ -2023,7 +1961,6 @@ local function performAutoHarvestUltraSafe()
     
     -- ULTRA SAFETY: Equip harvest tool first
     if not equipHarvestToolUltraSafe() then
-        print("❌ ULTRA SAFETY: Could not equip harvest tool")
         return
     end
     
@@ -2036,15 +1973,10 @@ local function performAutoHarvestUltraSafe()
         local quest = blueberryQuest.quest
         local displayData = blueberryQuest.displayData
         
-        print("🫐 ULTRA SAFE: Found blueberry harvest quest:", displayData.Title)
-        print("🫐 Progress:", quest.Progress or 0, "/", quest.Target or 150)
-        
         if not quest.Completed then
             -- ULTRA SAFETY: Add to quest targets
             QuestTargetCrops["Blueberry"] = true
             findAndHarvestCropUltraSafe("Blueberry", blueberryQuest)
-        else
-            print("✅ Blueberry quest already completed!")
         end
         return
     end
@@ -2056,15 +1988,10 @@ local function performAutoHarvestUltraSafe()
         local quest = strawberryQuest.quest
         local displayData = strawberryQuest.displayData
         
-        print("🍓 ULTRA SAFE: Found strawberry harvest quest:", displayData.Title)
-        print("🍓 Progress:", quest.Progress or 0, "/", quest.Target or 50)
-        
         if not quest.Completed then
             -- ULTRA SAFETY: Add to quest targets
             QuestTargetCrops["Strawberry"] = true
             findAndHarvestCropUltraSafe("Strawberry", strawberryQuest)
-        else
-            print("✅ Strawberry quest already completed!")
         end
         return
     end
@@ -2076,15 +2003,10 @@ local function performAutoHarvestUltraSafe()
         local quest = appleQuest.quest
         local displayData = appleQuest.displayData
         
-        print("🍎 ULTRA SAFE: Found apple harvest quest:", displayData.Title)
-        print("🍎 Progress:", quest.Progress or 0, "/", quest.Target or 25)
-        
         if not quest.Completed then
             -- ULTRA SAFETY: Add to quest targets
             QuestTargetCrops["Apple"] = true
             findAndHarvestCropUltraSafe("Apple", appleQuest)
-        else
-            print("✅ Apple quest already completed!")
         end
         return
     end
@@ -2096,15 +2018,10 @@ local function performAutoHarvestUltraSafe()
         local quest = coconutQuest.quest
         local displayData = coconutQuest.displayData
         
-        print("🥥 ULTRA SAFE: Found coconut harvest quest:", displayData.Title)
-        print("🥥 Progress:", quest.Progress or 0, "/", quest.Target or 10)
-        
         if not quest.Completed then
             -- ULTRA SAFETY: Add to quest targets
             QuestTargetCrops["Coconut"] = true
             findAndHarvestCropUltraSafe("Coconut", coconutQuest)
-        else
-            print("✅ Coconut quest already completed!")
         end
         return
     end
@@ -2116,21 +2033,15 @@ local function performAutoHarvestUltraSafe()
         local quest = dragonFruitQuest.quest
         local displayData = dragonFruitQuest.displayData
         
-        print("🐉 ULTRA SAFE: Found dragon fruit harvest quest:", displayData.Title)
-        print("🐉 Progress:", quest.Progress or 0, "/", quest.Target or 5)
-        
         if not quest.Completed then
             -- ULTRA SAFETY: Add to quest targets
             QuestTargetCrops["Dragon Fruit"] = true
             findAndHarvestCropUltraSafe("Dragon Fruit", dragonFruitQuest)
-        else
-            print("✅ Dragon fruit quest already completed!")
         end
         return
     end
     
     -- No relevant quests found
-    print("⏳ ULTRA SAFE: No harvest quests found - waiting for prehistoric harvest quests...")
     if currentTime % 30 < 2 then
         Library:Notify("⏳ Waiting for harvest quests...", 2)
     end
@@ -2147,7 +2058,6 @@ AutoHarvestGroupBox:AddToggle("AutoHarvest", {
         
         if Value then
             Library:Notify("Auto Harvest On.", 3)
-            print("🛡️")
             
             -- ULTRA SAFETY: Clear quest targets on start
             QuestTargetCrops = {}
