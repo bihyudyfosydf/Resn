@@ -159,13 +159,13 @@ local currentlyMovingPlants = {} -- Track plants currently being moved
 local movedPlants = {} -- Track plants that have already been moved
 local lastMoveTime = 0 -- Track time of last move to add delays
 
--- Function to get player's farm
+-- Function to get player's farm (EXACT from REFACRORMAIN)
 local function getMyFarm()
-    for _, farm in Services.Workspace.Farm:GetChildren() do
+    for _, farm in workspace.Farm:GetChildren() do
         local important = farm:FindFirstChild("Important")
         if important then
             local data = important:FindFirstChild("Data")
-            if data and data:FindFirstChild("Owner") and data.Owner.Value == LocalPlayer.Name then
+            if data and data.Owner.Value == LocalPlayer.Name then
                 return farm
             end
         end
@@ -642,7 +642,7 @@ local function equipEggTool(eggName)
     return nil
 end
 
--- Function to get random position on player's farm
+-- Function to get random position on player's farm (Enhanced from REFACRORMAIN)
 local function getRandomFarmPosition()
     local myFarm = getMyFarm()
     if not myFarm then
@@ -650,14 +650,36 @@ local function getRandomFarmPosition()
         return nil
     end
 
-    local farmCenter = myFarm:GetPivot().Position
+    print("✅ Found player farm:", myFarm.Name)
     
-    -- Generate random position within farm bounds (adjust these values based on typical farm size)
-    local randomX = farmCenter.X + math.random(-30, 30)
-    local randomZ = farmCenter.Z + math.random(-30, 30)
-    local randomY = farmCenter.Y -- Keep Y at farm level
-    
-    return Vector3.new(randomX, randomY, randomZ)
+    -- Try to find Can_Plant parts for more accurate positioning (like in REFACRORMAIN)
+    local canPlantParts = {}
+    for _, child in pairs(myFarm:GetDescendants()) do
+        if child.Name == "Can_Plant" and child:IsA("BasePart") then
+            table.insert(canPlantParts, child)
+        end
+    end
+
+    if #canPlantParts > 0 then
+        -- Use Can_Plant parts for accurate positioning
+        local selectedPart = canPlantParts[math.random(1, #canPlantParts)]
+        local size = selectedPart.Size
+        local position = selectedPart.Position
+        local randomX = position.X + math.random(-size.X / 2, size.X / 2)
+        local randomZ = position.Z + math.random(-size.Z / 2, size.Z / 2)
+        local finalPosition = Vector3.new(randomX, position.Y, randomZ)
+        print("🎯 Using Can_Plant position:", finalPosition)
+        return finalPosition
+    else
+        -- Fallback to farm center method
+        local farmCenter = myFarm:GetPivot().Position
+        local randomX = farmCenter.X + math.random(-20, 20)
+        local randomZ = farmCenter.Z + math.random(-20, 20)
+        local randomY = farmCenter.Y
+        local finalPosition = Vector3.new(randomX, randomY, randomZ)
+        print("🎯 Using farm center position:", finalPosition)
+        return finalPosition
+    end
 end
 
 -- Function to place an egg on the farm
