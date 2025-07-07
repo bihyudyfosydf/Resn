@@ -519,20 +519,8 @@ local autoPlaceToolsConnection = nil
 local lastToolPlaceTime = 0
 local placedTools = {} -- Track tools that have been placed
 
--- Complete list of all placeable tools in the game
+-- Complete list of all placeable tools in the game (excluding sprinklers)
 local AllPlaceableTools = {
-    "Basic Sprinkler",
-    "Advanced Sprinkler", 
-    "Godly Sprinkler",
-    "Master Sprinkler",
-    "Chocolate Sprinkler",
-    "Honey Sprinkler",
-    "Tropical Mist Sprinkler",
-    "Berry Blusher Sprinkler",
-    "Spice Spritzer Sprinkler",
-    "Sweet Soaker Sprinkler",
-    "Flower Froster Sprinkler",
-    "Stalk Sprout Sprinkler",
     "Lightning Rod",
     "Tanning Mirror",
     "Nectar Staff",
@@ -661,15 +649,7 @@ local function placeTool(toolName)
     -- Place the tool using the appropriate remote service
     local success = pcall(function()
         -- Determine which service to use based on tool type
-        if string.find(toolName:lower(), "sprinkler") then
-            -- Use SprinklerService for all sprinkler types
-            local SprinklerService = Services.ReplicatedStorage.GameEvents:FindFirstChild("SprinklerService")
-            if SprinklerService then
-                SprinklerService:FireServer("Create", placementCFrame)
-            else
-                error("SprinklerService not found")
-            end
-        elseif string.find(toolName:lower(), "lightning rod") then
+        if string.find(toolName:lower(), "lightning rod") then
             -- Use LightningRodService
             local LightningRodService = Services.ReplicatedStorage.GameEvents:FindFirstChild("LightningRodService")
             if LightningRodService then
