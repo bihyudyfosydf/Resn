@@ -772,7 +772,7 @@ local function getQuestByName(questNamePattern)
     end
 end
 
--- Function to find and equip carrot seeds (based on REFACRORMAIN logic)
+-- Function to find and equip carrot seeds
 local function findAndEquipCarrotSeed()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
     if not backpack then 
@@ -909,7 +909,106 @@ local function plantCarrot()
     end
 end
 
--- Main auto quest function for "Plant 100 Carrots"
+-- Function to find and equip mango seeds
+local function findAndEquipMangoSeed()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        print("❌ No backpack found")
+        return false 
+    end
+
+    -- Check if mango seed is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item is a mango seed
+                if string.find(cleanName:lower(), "mango") and string.find(cleanName:lower(), "seed") then
+                    print("✅ Mango seed already equipped:", itemName)
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Look for mango seeds in backpack
+    local mangoSeedTool = nil
+    local possibleNames = {
+        "MangoSeed",
+        "Mango Seed", 
+        "Mango",
+    }
+
+    -- First try exact matches
+    for _, possibleName in ipairs(possibleNames) do
+        mangoSeedTool = backpack:FindFirstChild(possibleName)
+        if mangoSeedTool then
+            print("✅ Found exact mango seed match:", possibleName)
+            break
+        end
+    end
+
+    -- If no exact match, try partial matching
+    if not mangoSeedTool then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local itemName = item.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if this item is a mango seed
+                if string.find(cleanName:lower(), "mango") and string.find(cleanName:lower(), "seed") then
+                    mangoSeedTool = item
+                    print("✅ Found mango seed partial match:", itemName)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Equip the mango seed tool
+    if mangoSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        print("🔧 Equipping mango seed:", mangoSeedTool.Name)
+        LocalPlayer.Character.Humanoid:EquipTool(mangoSeedTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ No mango seeds found in backpack")
+        return false
+    end
+end
+
+-- Function to plant mango at random position
+local function plantMango()
+    local plantPosition = getRandomPlantPosition()
+    if plantPosition then
+        -- Get the Plant_RE remote event
+        local Plant_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("Plant_RE")
+        
+        if Plant_RE then
+            local success = pcall(function()
+                Plant_RE:FireServer(plantPosition, "Mango")
+            end)
+            
+            if success then
+                print("✅ Successfully planted mango at position:", plantPosition)
+                return true
+            else
+                print("❌ Failed to plant mango")
+                return false
+            end
+        else
+            print("❌ Plant_RE remote event not found")
+            return false
+        end
+    else
+        print("❌ No planting position available")
+        return false
+    end
+end
+
+-- Main auto quest function for both "Plant 100 Carrots" and "Plant 1 Mango"
 local function performAutoQuest()
     if not AutoQuestEnabled then return end
     
@@ -920,7 +1019,7 @@ local function performAutoQuest()
     end
     lastQuestCheck = currentTime
     
-    -- Look for "Plant 100 Carrots" quest
+    -- Look for "Plant 100 Carrots" quest first
     local carrotQuest = getQuestByName("plant.*carrot")
     
     if carrotQuest then
@@ -933,50 +1032,87 @@ local function performAutoQuest()
         -- Check if quest is already completed
         if quest.Completed then
             print("✅ Carrot quest already completed!")
-            return
-        end
-        
-        -- Try to equip carrot seeds and plant
-        if findAndEquipCarrotSeed() then
-            if plantCarrot() then
-                local progress = quest.Progress or 0
-                local target = quest.Target or 100
-                Library:Notify("🥕 Planted carrot! Progress: " .. (progress + 1) .. "/" .. target, 2)
-            else
-                print("❌ Failed to plant carrot")
-            end
         else
-            print("❌ Could not find or equip carrot seeds")
-            Library:Notify("❌ Need carrot seeds in inventory!", 3)
+            -- Try to equip carrot seeds and plant
+            if findAndEquipCarrotSeed() then
+                if plantCarrot() then
+                    local progress = quest.Progress or 0
+                    local target = quest.Target or 100
+                    Library:Notify("🥕 Planted carrot! Progress: " .. (progress + 1) .. "/" .. target, 2)
+                else
+                    print("❌ Failed to plant carrot")
+                end
+            else
+                print("❌ Could not find or equip carrot seeds")
+                Library:Notify("❌ Need carrot seeds in inventory!", 3)
+            end
         end
-    else
-        print("⏳ No 'Plant Carrots' quest found - waiting for quest...")
-        -- Only show notification every 30 seconds to avoid spam
-        if currentTime % 30 < 2 then
-            Library:Notify("⏳ Waiting for 'Plant Carrots' quest...", 2)
+        return -- Found carrot quest, so we're done
+    end
+    
+    -- Look for "Plant 1 Mango" quest if no carrot quest
+    local mangoQuest = getQuestByName("plant.*mango")
+    
+    if mangoQuest then
+        local quest = mangoQuest.quest
+        local displayData = mangoQuest.displayData
+        
+        print("🥭 Found mango planting quest:", displayData.Title)
+        print("🥭 Progress:", quest.Progress or 0, "/", quest.Target or 1)
+        
+        -- Check if quest is already completed
+        if quest.Completed then
+            print("✅ Mango quest already completed!")
+        else
+            -- Try to equip mango seeds and plant
+            if findAndEquipMangoSeed() then
+                if plantMango() then
+                    local progress = quest.Progress or 0
+                    local target = quest.Target or 1
+                    Library:Notify("🥭 Planted mango! Progress: " .. (progress + 1) .. "/" .. target, 2)
+                    
+                    -- Show completion message since mango only needs 1
+                    if (progress + 1) >= target then
+                        Library:Notify("🎉 Mango quest should be complete!", 3)
+                    end
+                else
+                    print("❌ Failed to plant mango")
+                end
+            else
+                print("❌ Could not find or equip mango seeds")
+                Library:Notify("❌ Need mango seeds in inventory!", 3)
+            end
         end
+        return -- Found mango quest, so we're done
+    end
+    
+    -- No relevant quests found
+    print("⏳ No plant quests found - waiting for 'Plant Carrots' or 'Plant Mango' quest...")
+    -- Only show notification every 30 seconds to avoid spam
+    if currentTime % 30 < 2 then
+        Library:Notify("⏳ Waiting for plant quests...", 2)
     end
 end
 
 -- Auto Quest toggle
 AutoQuestGroupBox:AddToggle("AutoQuest", {
-    Text = "Auto Plant 100 Carrots Quest",
-    Tooltip = "Automatically completes the 'Plant 100 Carrots' prehistoric quest when it's available",
+    Text = "Auto Plant Quests (Carrots & Mango)",
+    Tooltip = "Automatically completes 'Plant 100 Carrots' and 'Plant 1 Mango' prehistoric quests when available",
     Default = false,
     Callback = function(Value)
         AutoQuestEnabled = Value
         print("[cb] Auto Quest toggled:", Value)
         
         if Value then
-            Library:Notify("🥕 Auto Carrot Quest enabled!", 3)
-            print("🥕 Auto Quest started - looking for 'Plant 100 Carrots' quest...")
+            Library:Notify("🥕🥭 Auto Plant Quests enabled!", 3)
+            print("🥕🥭 Auto Quest started - looking for plant quests...")
             
             -- Start auto quest loop
             autoQuestConnection = Services.RunService.Heartbeat:Connect(function()
                 performAutoQuest()
             end)
         else
-            Library:Notify("🥕 Auto Carrot Quest disabled!", 3)
+            Library:Notify("🥕🥭 Auto Plant Quests disabled!", 3)
             
             -- Stop auto quest loop
             if autoQuestConnection then
