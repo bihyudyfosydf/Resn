@@ -1437,6 +1437,11 @@ AutoQuestGroupBox:AddToggle("AutoQuest", {
 -- ================================================================
 local PrehistoricQuestGroupBox = EventTab:AddLeftGroupbox("Prehistoric Quest 🦴")
 
+-- Variables for Auto Claim system
+local AutoClaimDinoRewardEnabled = false
+local autoClaimDinoRewardConnection = nil
+local lastClaimCheck = 0
+
 -- Function to get detailed dino quest information
 local function getDinoQuestDetails()
     local success, result = pcall(function()
@@ -1592,6 +1597,154 @@ PrehistoricQuestGroupBox:AddButton("Show Quest Details", function()
     -- Also show a notification
     Library:Notify("🦴 Dino quest details printed to console!", 3)
 end)
+
+-- Function to check for claimable quest containers
+local function checkClaimableQuestContainers()
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local QuestsController = require(Services.ReplicatedStorage.Modules.QuestsController)
+        
+        local data = DataService:GetData()
+        if not data or not data.DinoQuests or not data.DinoQuests.Containers then
+            return false
+        end
+        
+        local claimedAny = false
+        
+        -- Check each quest container
+        for i, containerId in pairs(data.DinoQuests.Containers) do
+            local container = QuestsController:GetContainerFromId(containerId)
+            if container and not container.Redeemed then
+                -- Check if all quests in container are completed
+                local allQuestsCompleted = true
+                if container.Quests then
+                    for _, quest in pairs(container.Quests) do
+                        if not quest.Completed then
+                            allQuestsCompleted = false
+                            break
+                        end
+                    end
+                end
+                
+                -- If all quests completed, claim the container
+                if allQuestsCompleted then
+                    local ClaimDinoQuest = Services.ReplicatedStorage.GameEvents:FindFirstChild("ClaimDinoQuest")
+                    if ClaimDinoQuest then
+                        local success = pcall(function()
+                            ClaimDinoQuest:InvokeServer(containerId)
+                        end)
+                        
+                        if success then
+                            print("🎁 Auto claimed dino quest container:", containerId)
+                            Library:Notify("🎁 Auto claimed dino quest rewards!", 2)
+                            claimedAny = true
+                            task.wait(0.5) -- Small delay between claims
+                        end
+                    end
+                end
+            end
+        end
+        
+        return claimedAny
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Error checking claimable quest containers:", result)
+        return false
+    end
+end
+
+-- Function to check for claimable milestone rewards
+local function checkClaimableMilestoneRewards()
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        
+        local data = DataService:GetData()
+        if not data or not data.DinoQuests then
+            return false
+        end
+        
+        local milestone = data.DinoQuests.Milestone or {}
+        local currentProgress = milestone.Progress or 0
+        local completed = milestone.Completed or {}
+        local claimed = milestone.Claimed or {}
+        
+        -- Note: Milestone rewards may auto-claim when quest containers are claimed
+        -- The milestone system tracks progress automatically when containers are redeemed
+        -- No separate claiming action appears to be needed based on the codebase analysis
+        
+        -- Check if there are unclaimed milestones (informational only)
+        local unclaimedCount = 0
+        for milestoneLevel = 1, currentProgress do
+            if completed[milestoneLevel] and not claimed[milestoneLevel] then
+                unclaimedCount = unclaimedCount + 1
+            end
+        end
+        
+        if unclaimedCount > 0 then
+            print("📊 Found " .. unclaimedCount .. " unclaimed milestones (may auto-claim with quest containers)")
+        end
+        
+        return false -- No manual claiming needed
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Error checking milestone data:", result)
+        return false
+    end
+end
+
+-- Main auto claim function
+local function performAutoClaimDinoReward()
+    if not AutoClaimDinoRewardEnabled then return end
+    
+    -- Don't check too frequently (every 3 seconds)
+    local currentTime = tick()
+    if currentTime - lastClaimCheck < 3 then
+        return
+    end
+    lastClaimCheck = currentTime
+    
+    -- Check for claimable quest containers (main functionality)
+    local claimedContainers = checkClaimableQuestContainers()
+    
+    -- Check milestone status (informational - milestones auto-progress)
+    if claimedContainers then
+        checkClaimableMilestoneRewards()
+    end
+end
+
+-- Auto Claim Dino Reward toggle
+PrehistoricQuestGroupBox:AddToggle("AutoClaimDinoReward", {
+    Text = "Auto Claim Dino Rewards",
+    Tooltip = "Automatically claim completed quest containers (milestones auto-progress)",
+    Default = false,
+    Callback = function(Value)
+        AutoClaimDinoRewardEnabled = Value
+        print("[cb] Auto Claim Dino Reward toggled:", Value)
+        
+        if Value then
+            Library:Notify("🎁 Auto Claim Dino Rewards enabled!", 3)
+            
+            -- Start auto claim loop
+            autoClaimDinoRewardConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoClaimDinoReward()
+            end)
+        else
+            Library:Notify("🎁 Auto Claim Dino Rewards disabled!", 3)
+            
+            -- Stop auto claim loop
+            if autoClaimDinoRewardConnection then
+                autoClaimDinoRewardConnection:Disconnect()
+                autoClaimDinoRewardConnection = nil
+            end
+        end
+    end,
+})
 
 -- ================================================================
 -- AUTO HARVEST SYSTEM (ULTRA SAFE VERSION)
@@ -2084,6 +2237,23 @@ AutoHarvestGroupBox:AddToggle("AutoHarvest", {
         end
     end,
 })
+
+-- ================================================================
+-- QUEST INFORMATION
+-- ================================================================
+local QuestInfoGroupBox = EventTab:AddRightGroupbox("Quest Info 📋")
+
+QuestInfoGroupBox:AddLabel("🐾 Pet Growth Quests:")
+QuestInfoGroupBox:AddLabel("Already handled by Auto Feed Pets")
+QuestInfoGroupBox:AddLabel("in the Essential tab.")
+QuestInfoGroupBox:AddDivider()
+QuestInfoGroupBox:AddLabel("🔨 Crafting Quests:")
+QuestInfoGroupBox:AddLabel("Already handled by Auto Craft")
+QuestInfoGroupBox:AddLabel("in the Crafter tab.")
+QuestInfoGroupBox:AddDivider()
+QuestInfoGroupBox:AddLabel("✅ No need to add these features")
+QuestInfoGroupBox:AddLabel("to the Event tab since they")
+QuestInfoGroupBox:AddLabel("already exist elsewhere!")
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
