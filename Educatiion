@@ -1048,13 +1048,6 @@ local function initializeCrafterTab()
         end,
     })
 
-    -- Manual claim all button
-    AutoClaimGroupBox:AddButton("🎁 Check & Claim All Now", function()
-        Library:Notify("🔍 Manually checking all workbenches for finished items...", 3)
-        lastClaimTime = 0 -- Reset timer for immediate check
-        checkAndClaimFinishedItems()
-    end)
-
     AutoClaimGroupBox:AddLabel("💡 This monitor works independently")
     AutoClaimGroupBox:AddLabel("of the auto-craft toggles above.")
     AutoClaimGroupBox:AddLabel("Perfect for when you rejoin and")
