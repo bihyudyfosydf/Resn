@@ -46,7 +46,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
+local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🟢")
 
 -- ================================================================
 -- PLANT MOVE SYSTEM
@@ -272,7 +272,8 @@ local function movePlant(plantToMove, targetPlantName)
         local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
         
         if pickupSuccess then
-            task.wait(0.3) -- Wait for pickup to process properly
+            -- Wait longer for pickup to fully process (trowel system needs time)
+            task.wait(1) 
             
             -- Step 2: Place the plant directly at target plant's position
             local placementCFrame = CFrame.new(
@@ -286,11 +287,10 @@ local function movePlant(plantToMove, targetPlantName)
             -- The TrowelRemote Place sometimes returns nil even on success, so we check differently
             TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
             
-            -- Wait a moment for placement to process
-            task.wait(0.3)
+            -- Wait longer for placement animation to complete (trowel system has 0.4s delay + extra)
+            task.wait(1.5)
             
-            -- Check if plant was successfully moved by seeing if it's no longer in original position
-            -- or if it's now closer to target
+            -- Check if plant was successfully moved by seeing if it's now closer to target
             local currentPosition = plantToMove:GetPivot().Position
             local distanceToTarget = (currentPosition - targetPosition).Magnitude
             
@@ -321,10 +321,10 @@ local function performPlantMove()
         return 
     end
     
-    -- Add delay between moves (don't block with wait)
+    -- Add delay between moves (trowel system needs time to complete animations)
     local currentTime = tick()
-    if currentTime - lastMoveTime < 1.5 then
-        return -- Not enough time has passed for next move
+    if currentTime - lastMoveTime < 3 then
+        return -- Not enough time has passed for next move (trowel needs 3+ seconds)
     end
     
     -- Check if we have plants to move and targets
