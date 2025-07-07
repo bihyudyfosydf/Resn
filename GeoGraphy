@@ -46,7 +46,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-local AutoMoveGroupBox = Tabs.Essential:AddRightGroupbox("Auto Move 🚀")
+local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 
 -- ================================================================
 -- PLANT MOVE SYSTEM
@@ -216,49 +216,17 @@ local function findPlantsByName(plantName)
     return foundPlants
 end
 
--- Function to find Can_Plant areas near target plants
-local function findCanPlantNearTarget(targetPlantName)
-    local myFarm = getMyFarm()
-    if not myFarm then
-        return nil
-    end
-
-    local important = myFarm:FindFirstChild("Important")
-    if not important then
-        return nil
-    end
-
-    -- Find target plants first
+-- Function to get target plant's position directly
+local function getTargetPlantPosition(targetPlantName)
+    -- Find target plants
     local targetPlants = findPlantsByName(targetPlantName)
     if #targetPlants == 0 then
         return nil
     end
 
-    -- Get the first target plant's position
+    -- Get the first target plant's position directly
     local targetPlant = targetPlants[1]
-    local targetPosition = targetPlant:GetPivot().Position
-
-    -- Find Plant_Locations with Can_Plant parts
-    local plantLocations = important:FindFirstChild("Plant_Locations")
-    if not plantLocations then
-        return nil
-    end
-
-    -- Find the closest Can_Plant part to the target
-    local closestCanPlant = nil
-    local closestDistance = math.huge
-
-    for _, location in pairs(plantLocations:GetChildren()) do
-        if location.Name == "Can_Plant" and location:IsA("BasePart") then
-            local distance = (location.Position - targetPosition).Magnitude
-            if distance < closestDistance then
-                closestDistance = distance
-                closestCanPlant = location
-            end
-        end
-    end
-
-    return closestCanPlant
+    return targetPlant:GetPivot().Position
 end
 
 -- Function to move a single plant
@@ -277,10 +245,10 @@ local function movePlant(plantToMove, targetPlantName)
             return
         end
 
-        -- Find Can_Plant location near target
-        local canPlantLocation = findCanPlantNearTarget(targetPlantName)
-        if not canPlantLocation then
-            Library:Notify("❌ No placement area found near " .. targetPlantName, 3)
+        -- Get target plant position directly
+        local targetPosition = getTargetPlantPosition(targetPlantName)
+        if not targetPosition then
+            Library:Notify("❌ Target plant not found: " .. targetPlantName, 3)
             return
         end
 
@@ -296,20 +264,20 @@ local function movePlant(plantToMove, targetPlantName)
         local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
         
         if pickupSuccess then
-            task.wait(0.5) -- Wait for pickup to process
+            task.wait(0.3) -- Shorter wait for faster movement
             
-            -- Step 2: Place the plant near target
-            local placementCFrame = CFrame.new(canPlantLocation.Position) * CFrame.new(
-                math.random(-5, 5), -- Random X offset
-                0,
-                math.random(-5, 5)  -- Random Z offset
+            -- Step 2: Place the plant directly at target plant's position
+            local placementCFrame = CFrame.new(
+                targetPosition.X + math.random(-2, 2), -- Small random offset
+                targetPosition.Y,
+                targetPosition.Z + math.random(-2, 2)  -- Small random offset
             )
             
-            print("🔧 Placing plant at:", placementCFrame.Position)
+            print("🔧 Placing plant directly at target location:", placementCFrame.Position)
             local placeSuccess = TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
             
             if placeSuccess then
-                Library:Notify("✅ Moved " .. plantToMove.Name .. " near " .. targetPlantName, 2)
+                Library:Notify("✅ Moved " .. plantToMove.Name .. " to " .. targetPlantName, 2)
             else
                 Library:Notify("❌ Failed to place " .. plantToMove.Name, 3)
             end
@@ -369,7 +337,7 @@ local function performPlantMove()
                     print("🌱 Moving", plantToMove.Name, "near", targetPlantName)
                     
                     if movePlant(plantToMove, targetPlantName) then
-                        task.wait(3) -- Delay between moves to prevent spam
+                        task.wait(1) -- Shorter delay since movement is much faster now
                     end
                 end
             end
