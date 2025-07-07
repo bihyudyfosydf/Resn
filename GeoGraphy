@@ -1,0 +1,209 @@
+-- ================================================================
+-- RE:FACTOR AUTO MOVE SYSTEM
+-- Auto-integrates with main script when globals are available
+-- ================================================================
+
+-- Wait for main script to be ready
+local function waitForMainScript()
+    local maxWait = 30 -- Maximum 30 seconds
+    local waited = 0
+    
+    while waited < maxWait do
+        -- Check multiple possible global locations
+        local Library = getgenv and getgenv().Library or _G.Library
+        local Window = getgenv and getgenv().Window or _G.Window
+        local Tabs = getgenv and getgenv().Tabs or _G.Tabs
+        local MainScriptLoaded = getgenv and getgenv().MainScriptLoaded or _G.MainScriptLoaded
+        
+        if Library and Window and Tabs and MainScriptLoaded then
+            print("✅ Auto Move: Main script globals found!")
+            return Library, Window, Tabs
+        end
+        
+        task.wait(0.5)
+        waited = waited + 0.5
+    end
+    
+    error("❌ Auto Move: Main script not ready after " .. maxWait .. " seconds")
+end
+
+-- Get references to main script components
+local Library, Window, Tabs = waitForMainScript()
+
+-- ================================================================
+-- SERVICES SETUP
+-- ================================================================
+local Services = {
+    Workspace = game:GetService("Workspace"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService"),
+    TweenService = game:GetService("TweenService")
+}
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+-- ================================================================
+-- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
+-- ================================================================
+local AutoMoveGroupBox = Tabs.Essential:AddRightGroupbox("Auto Move 🚀")
+
+-- ================================================================
+-- AUTO TELEPORT SYSTEM
+-- ================================================================
+
+-- Variables for Auto Teleport
+local AutoTeleportEnabled = false
+local SelectedLocation = "Farm"
+local autoTeleportConnection = nil
+
+-- Available teleport locations
+local TeleportLocations = {
+    "Farm",
+    "Shop",
+    "Spawn",
+    "Beach",
+    "Mountain",
+    "Forest"
+}
+
+-- Location dropdown
+AutoMoveGroupBox:AddDropdown("TeleportLocation", {
+    Values = TeleportLocations,
+    Default = 1,
+    Multi = false,
+    Text = "Select Location",
+    Tooltip = "Choose where to auto teleport",
+    Callback = function(Value)
+        SelectedLocation = Value
+        print("[cb] Selected teleport location:", Value)
+        Library:Notify("📍 Location set: " .. Value, 2)
+    end,
+})
+
+-- Auto Teleport toggle
+AutoMoveGroupBox:AddToggle("AutoTeleport", {
+    Text = "Auto Teleport",
+    Tooltip = "Automatically teleport to selected location",
+    Default = false,
+    Callback = function(Value)
+        AutoTeleportEnabled = Value
+        print("[cb] Auto Teleport toggled:", Value)
+        
+        if Value then
+            Library:Notify("🚀 Auto Teleport enabled!", 3)
+            
+            -- Start teleport loop (placeholder)
+            autoTeleportConnection = Services.RunService.Heartbeat:Connect(function()
+                -- Placeholder teleport logic
+                -- This would implement actual teleportation
+            end)
+        else
+            Library:Notify("🚀 Auto Teleport disabled!", 3)
+            
+            -- Stop teleport loop
+            if autoTeleportConnection then
+                autoTeleportConnection:Disconnect()
+                autoTeleportConnection = nil
+            end
+        end
+    end,
+})
+
+-- ================================================================
+-- AUTO WALK SYSTEM
+-- ================================================================
+
+-- Variables for Auto Walk
+local AutoWalkEnabled = false
+local WalkSpeed = 16
+local autoWalkConnection = nil
+
+-- Walk speed slider
+AutoMoveGroupBox:AddSlider("WalkSpeed", {
+    Text = "Walk Speed",
+    Tooltip = "Set auto walk speed",
+    Default = 16,
+    Min = 1,
+    Max = 100,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        WalkSpeed = Value
+        print("[cb] Walk speed set to:", Value)
+        
+        -- Apply speed to character if auto walk is enabled
+        if AutoWalkEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+    end,
+})
+
+-- Auto Walk toggle
+AutoMoveGroupBox:AddToggle("AutoWalk", {
+    Text = "Auto Walk",
+    Tooltip = "Enable auto walking with custom speed",
+    Default = false,
+    Callback = function(Value)
+        AutoWalkEnabled = Value
+        print("[cb] Auto Walk toggled:", Value)
+        
+        if Value then
+            Library:Notify("🚶 Auto Walk enabled!", 3)
+            
+            -- Start walk monitoring
+            autoWalkConnection = Services.RunService.Heartbeat:Connect(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeed
+                end
+            end)
+        else
+            Library:Notify("🚶 Auto Walk disabled!", 3)
+            
+            -- Stop walk monitoring and reset speed
+            if autoWalkConnection then
+                autoWalkConnection:Disconnect()
+                autoWalkConnection = nil
+            end
+            
+            -- Reset to default speed
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = 16
+            end
+        end
+    end,
+})
+
+-- ================================================================
+-- QUICK ACTIONS
+-- ================================================================
+
+AutoMoveGroupBox:AddDivider()
+AutoMoveGroupBox:AddLabel("Quick Actions:")
+
+-- Go to Farm button
+AutoMoveGroupBox:AddButton("Go to Farm", function()
+    Library:Notify("🚜 Going to farm... (placeholder)", 2)
+    print("🚜 Teleporting to farm (placeholder function)")
+end)
+
+-- Go to Shop button
+AutoMoveGroupBox:AddButton("Go to Shop", function()
+    Library:Notify("🛒 Going to shop... (placeholder)", 2)
+    print("🛒 Teleporting to shop (placeholder function)")
+end)
+
+-- Reset Position button
+AutoMoveGroupBox:AddButton("Reset Position", function()
+    Library:Notify("🔄 Resetting position... (placeholder)", 2)
+    print("🔄 Resetting player position (placeholder function)")
+end)
+
+-- ================================================================
+-- AUTO MOVE INITIALIZATION COMPLETE
+-- ================================================================
+print("🚀 Auto Move system integrated with Essential tab!")
+Library:Notify("🚀 Auto Move loaded!", 3)
+
+-- Return success indicator
+return true 
