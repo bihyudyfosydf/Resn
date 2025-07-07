@@ -27,11 +27,6 @@ local function initializeCrafterTab()
     local GearCrafterGroupBox = CrafterTab:AddRightGroupbox("Gear Crafter")
 
     -- ================================================================
-    -- DINO CRAFTER GROUPBOX
-    -- ================================================================
-    local DinoCrafterGroupBox = CrafterTab:AddLeftGroupbox("Dino Craft")
-
-    -- ================================================================
     -- GLOBAL VARIABLES
     -- ================================================================
     local SelectedRecipe = nil
@@ -40,10 +35,6 @@ local function initializeCrafterTab()
     -- Gear Crafter Variables
     local SelectedGearRecipe = nil
     local AutoGearClaimEnabled = false
-
-    -- Dino Crafter Variables
-    local SelectedDinoRecipe = nil
-    local AutoDinoClaimEnabled = false
 
     -- Services
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -76,13 +67,6 @@ local function initializeCrafterTab()
         "Mutation Spray Shocked",
         "Anti Bee Egg",
         "Pack Bee"
-    }
-
-    -- Available dino recipes
-    local AvailableDinoRecipes = {
-        "Mutation Spray Amber",
-        "Ancient Seed Pack",
-        "Dino Crate"
     }
 
     -- Recipe data for inventory checking
@@ -275,44 +259,6 @@ local function initializeCrafterTab()
             MachineTypes = {"GearEventWorkbench"},
             PurchaseID = 3306484257,
             RobuxPrice = 799
-        }
-    }
-
-    -- Dino Recipe data for dino crafting
-    local DinoRecipeData = {
-        ["Mutation Spray Amber"] = {
-            LayoutOrder = 90,
-            TimeToCraft = 3600,
-            Inputs = {
-                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
-                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
-            },
-            Cost = {CurrencyType = "Sheckles", Amount = 1000000},
-            MachineTypes = {"DinoEventWorkbench"},
-            PurchaseID = 3322971805,
-            RobuxPrice = 189
-        },
-        ["Ancient Seed Pack"] = {
-            LayoutOrder = 100,
-            TimeToCraft = 3600,
-            Inputs = {
-                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
-            },
-            Cost = {CurrencyType = "Sheckles", Amount = 5500000},
-            MachineTypes = {"DinoEventWorkbench"},
-            PurchaseID = 3324600388,
-            RobuxPrice = 199
-        },
-        ["Dino Crate"] = {
-            LayoutOrder = 110,
-            TimeToCraft = 1800,
-            Inputs = {
-                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
-            },
-            Cost = {CurrencyType = "Sheckles", Amount = 5500000},
-            MachineTypes = {"DinoEventWorkbench"},
-            PurchaseID = 3324601485,
-            RobuxPrice = 179
         }
     }
 
@@ -707,37 +653,9 @@ local function initializeCrafterTab()
         end
     end
 
-    -- Function to claim dino recipe
-    local function claimDinoRecipe(recipeName)
-        local success, err = pcall(function()
-            print("🦕 Setting dino recipe:", recipeName)
-            local DinoCraftingTable = workspace.Interaction.UpdateItems.DinoEvent.DinoCraftingTable
-            
-            CraftingGlobalObjectService:FireServer(
-                "SetRecipe",
-                DinoCraftingTable,
-                "DinoEventWorkbench",
-                recipeName
-            )
-        end)
-
-        if success then
-            print("✅ Successfully set dino recipe:", recipeName)
-            return true
-        else
-            print("❌ Failed to set dino recipe:", err)
-            return false
-        end
-    end
-
     -- Function to automatically input gear items into recipe (enhanced with auto-craft)
     local function autoInputGearItems(recipeData)
         return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
-    end
-
-    -- Function to automatically input dino items into recipe (enhanced with auto-craft)
-    local function autoInputDinoItems(recipeData)
-        return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "DinoEventWorkbench")
     end
 
     -- Function to start crafting after items are input
@@ -900,11 +818,6 @@ local function initializeCrafterTab()
         return autoInputItemsAndCraft(recipeData, workspace.CraftingTables.EventCraftingWorkBench, "GearEventWorkbench")
     end
 
-    -- Enhanced autoInputDinoItems that uses the full auto-craft functionality  
-    local function autoInputDinoItemsEnhanced(recipeData)
-        return autoInputItemsAndCraft(recipeData, workspace.Interaction.UpdateItems.DinoEvent.DinoCraftingTable, "DinoEventWorkbench")
-    end
-
     -- ================================================================
     -- UI ELEMENTS
     -- ================================================================
@@ -1024,78 +937,128 @@ local function initializeCrafterTab()
     GearCrafterGroupBox:AddDivider()
 
     -- ================================================================
-    -- DINO CRAFTER UI ELEMENTS  
+    -- AUTO CLAIM GROUPBOX (Persistent Monitoring)
     -- ================================================================
+    local AutoClaimGroupBox = CrafterTab:AddLeftGroupbox("Auto Claim Monitor 🎁")
 
-    -- Dino Recipe selection dropdown
-    DinoCrafterGroupBox:AddDropdown("DinoRecipeSelection", {
-        Values = AvailableDinoRecipes,
-        Default = 1,
-        Multi = false, -- Single selection only
-        Text = "Select Dino Recipe",
-        Tooltip = "Choose which dino recipe to claim/set",
+    -- Variables for persistent auto claim
+    local PersistentAutoClaimEnabled = false
+    local autoClaimConnection = nil
+    local lastClaimTime = 0
+
+    -- Function to check and claim from both workbenches
+    local function checkAndClaimFinishedItems()
+        if not PersistentAutoClaimEnabled then 
+            return 
+        end
+        
+        -- Add delay between claim attempts
+        local currentTime = tick()
+        if currentTime - lastClaimTime < 3 then
+            return -- Wait at least 3 seconds between claims
+        end
+        
+        local claimedSomething = false
+        
+        -- Check Seed Workbench
+        pcall(function()
+            if isCraftingComplete(SeedEventCraftingWorkBench, "SeedEventWorkbench") then
+                print("🎁 Seed crafting complete! Auto-claiming...")
+                if claimCraftedItems(SeedEventCraftingWorkBench, "SeedEventWorkbench", 1) then
+                    Library:Notify("🎁 Auto-claimed seed crafting result!", 3)
+                    claimedSomething = true
+                    lastClaimTime = currentTime
+                end
+            end
+        end)
+        
+        -- Check Gear Workbench
+        pcall(function()
+            local GearEventWorkBench = workspace.CraftingTables:FindFirstChild("EventCraftingWorkBench")
+            if GearEventWorkBench and isCraftingComplete(GearEventWorkBench, "GearEventWorkbench") then
+                print("🎁 Gear crafting complete! Auto-claiming...")
+                if claimCraftedItems(GearEventWorkBench, "GearEventWorkbench", 1) then
+                    Library:Notify("🎁 Auto-claimed gear crafting result!", 3)
+                    claimedSomething = true
+                    lastClaimTime = currentTime
+                end
+            end
+        end)
+        
+        -- Also try checking all other crafting objects just in case
+        pcall(function()
+            local CollectionService = game:GetService("CollectionService")
+            for _, craftingObject in pairs(CollectionService:GetTagged("CraftingObject")) do
+                if craftingObject:IsDescendantOf(workspace) then
+                    local machineType = craftingObject:GetAttribute("CraftingObjectType")
+                    if machineType and isCraftingComplete(craftingObject, machineType) then
+                        print("🎁 Found completed crafting on:", craftingObject.Name, "- Auto-claiming...")
+                        if claimCraftedItems(craftingObject, machineType, 1) then
+                            Library:Notify("🎁 Auto-claimed from " .. craftingObject.Name .. "!", 3)
+                            claimedSomething = true
+                            lastClaimTime = currentTime
+                            break -- Only claim one at a time to avoid spam
+                        end
+                    end
+                end
+            end
+        end)
+        
+        if claimedSomething then
+            print("✅ Auto-claim successful - next check in 3+ seconds")
+        end
+    end
+
+    -- Persistent Auto Claim toggle
+    AutoClaimGroupBox:AddToggle("PersistentAutoClaim", {
+        Text = "🎁 Auto Claim Finished Items",
+        Default = false,
+        Tooltip = "Continuously monitor and auto-claim any finished crafting items from all workbenches - works even after rejoining!",
         Callback = function(Value)
-            SelectedDinoRecipe = Value
-            print("[cb] Selected dino recipe:", Value)
+            PersistentAutoClaimEnabled = Value
+            print("[cb] Persistent Auto Claim toggled:", Value)
+            
+            if Value then
+                Library:Notify("🎁 Auto Claim Monitor enabled! Will check all workbenches continuously.", 4)
+                
+                -- Clear timing
+                lastClaimTime = 0
+                
+                -- Start monitoring loop
+                autoClaimConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                    -- Run check every few heartbeats to avoid performance issues
+                    if tick() % 2 < 0.1 then -- Check roughly every 2 seconds
+                        checkAndClaimFinishedItems()
+                    end
+                end)
+                
+                -- Also do an immediate check
+                task.spawn(checkAndClaimFinishedItems)
+            else
+                Library:Notify("🎁 Auto Claim Monitor disabled!", 3)
+                
+                -- Stop monitoring loop
+                if autoClaimConnection then
+                    autoClaimConnection:Disconnect()
+                    autoClaimConnection = nil
+                end
+                
+                lastClaimTime = 0
+            end
         end,
     })
 
-    -- Auto dino claim toggle
-    DinoCrafterGroupBox:AddToggle("AutoDinoClaim", {
-        Text = "🦕 Auto Craft Dino (Full Auto)",
-        Default = false,
-        Tooltip = "Set dino recipe, input items, start crafting, and auto-claim when done - fully automatic!",
-        Callback = function(Value)
-            print("[cb] Auto Craft Dino toggled:", Value)
-            
-            if Value then
-                if not SelectedDinoRecipe then
-                    print("⚠️ Please select a dino recipe first!")
-                    -- Use task.wait to avoid immediate callback loop
-                    task.wait(0.1)
-                    if Toggles and Toggles.AutoDinoClaim then
-                        Toggles.AutoDinoClaim:SetValue(false)
-                    end
-                    return
-                end
-
-                print("🦕 Auto-crafting dino recipe:", SelectedDinoRecipe)
-                
-                -- Step 1: Set the dino recipe
-                claimDinoRecipe(SelectedDinoRecipe)
-                task.wait(1) -- Wait for recipe to be set
-                
-                -- Step 2: Auto-input available dino items and start crafting
-                local recipeData = DinoRecipeData[SelectedDinoRecipe]
-                if recipeData then
-                    autoInputDinoItemsEnhanced(recipeData)
-                end
-                
-                -- Turn toggle back off after processing
-                task.wait(0.1)
-                if Toggles and Toggles.AutoDinoClaim then
-                    Toggles.AutoDinoClaim:SetValue(false)
-                end
-            end
-        end
-    })
-
-    -- Manual Dino Machine Reward Claim button
-    DinoCrafterGroupBox:AddButton("🎁 Claim Dino Machine Reward", function()
-        local success, err = pcall(function()
-            print("🎁 Claiming dino machine reward...")
-            local DinoMachineService_RE = game:GetService("ReplicatedStorage").GameEvents.DinoMachineService_RE
-            DinoMachineService_RE:FireServer("ClaimReward")
-        end)
-        
-        if success then
-            print("✅ Successfully claimed dino machine reward!")
-        else
-            print("❌ Failed to claim dino machine reward:", err)
-        end
+    -- Manual claim all button
+    AutoClaimGroupBox:AddButton("🎁 Check & Claim All Now", function()
+        Library:Notify("🔍 Manually checking all workbenches for finished items...", 3)
+        lastClaimTime = 0 -- Reset timer for immediate check
+        checkAndClaimFinishedItems()
     end)
 
-    DinoCrafterGroupBox:AddDivider()
+    AutoClaimGroupBox:AddLabel("💡 This monitor works independently")
+    AutoClaimGroupBox:AddLabel("of the auto-craft toggles above.")
+    AutoClaimGroupBox:AddLabel("Perfect for when you rejoin and")
+    AutoClaimGroupBox:AddLabel("crafting finished while away!")
 
     -- ================================================================
     -- SUCCESS MESSAGE
@@ -1103,7 +1066,6 @@ local function initializeCrafterTab()
     -- Library:Notify("🔨 Simple Seed Crafter loaded!", 3) -- Disabled notification
     print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
     print("⚙️ Gear Crafter initialized with " .. #AvailableGearRecipes .. " gear recipes")
-    print("🐉 Dino Crafter initialized with " .. #AvailableDinoRecipes .. " dino recipes")
 
     return true
 end
