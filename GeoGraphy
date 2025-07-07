@@ -138,7 +138,7 @@ AutoMoveGroupBox:AddDropdown("PlantsToMoveTo", {
 
 -- Additional variables for plant moving
 local plantMoveConnection = nil
-local isMovingPlant = false
+local currentlyMovingPlants = {} -- Track plants currently being moved
 local movedPlants = {} -- Track plants that have already been moved
 
 -- Function to get player's farm
@@ -232,11 +232,15 @@ end
 
 -- Function to move a single plant
 local function movePlant(plantToMove, targetPlantName)
-    if isMovingPlant then
+    local plantId = tostring(plantToMove)
+    
+    -- Check if this specific plant is already being moved
+    if currentlyMovingPlants[plantId] then
         return false
     end
     
-    isMovingPlant = true
+    -- Mark this plant as currently being moved
+    currentlyMovingPlants[plantId] = true
     
     local moveSuccess = false
     
@@ -267,7 +271,7 @@ local function movePlant(plantToMove, targetPlantName)
         local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
         
         if pickupSuccess then
-            task.wait(0.5) -- Wait for pickup to process properly
+            task.wait(0.3) -- Wait for pickup to process properly
             
             -- Step 2: Place the plant directly at target plant's position
             local placementCFrame = CFrame.new(
@@ -282,7 +286,7 @@ local function movePlant(plantToMove, targetPlantName)
             TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
             
             -- Wait a moment for placement to process
-            task.wait(0.5)
+            task.wait(0.3)
             
             -- Check if plant was successfully moved by seeing if it's no longer in original position
             -- or if it's now closer to target
@@ -305,13 +309,14 @@ local function movePlant(plantToMove, targetPlantName)
         Library:Notify("❌ Error moving plant", 3)
     end
     
-    isMovingPlant = false
+    -- Clear the moving flag for this specific plant
+    currentlyMovingPlants[plantId] = nil
     return moveSuccess
 end
 
 -- Main plant moving function
 local function performPlantMove()
-    if not PlantMoveEnabled or isMovingPlant then 
+    if not PlantMoveEnabled then 
         return 
     end
     
@@ -350,17 +355,20 @@ local function performPlantMove()
                     -- Move ALL plants of this type, not just one
                     for _, plant in pairs(plantsToMove) do
                         local plantId = tostring(plant) -- Use object reference as unique ID
-                        if not movedPlants[plantId] then
+                        if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
                             print("🌱 Moving", plant.Name, "near", targetPlantName)
                             
-                            if movePlant(plant, targetPlantName) then
-                                -- Mark this plant as moved
-                                movedPlants[plantId] = true
-                                print("✅ Marked plant as moved:", plantId)
-                                task.wait(1) -- Shorter wait between moves for faster bulk moving
-                            else
-                                task.wait(0.5) -- Shorter wait on failure
-                            end
+                            -- Start moving this plant (async)
+                            task.spawn(function()
+                                if movePlant(plant, targetPlantName) then
+                                    -- Mark this plant as moved
+                                    movedPlants[plantId] = true
+                                    print("✅ Marked plant as moved:", plantId)
+                                end
+                            end)
+                            
+                            -- Small delay between starting each move to prevent overwhelming
+                            task.wait(0.2)
                             
                             -- Check if we should stop (toggle disabled)
                             if not PlantMoveEnabled then
@@ -402,6 +410,7 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
             
             -- Clear moved plants tracker for fresh start
             movedPlants = {}
+            currentlyMovingPlants = {}
             
             -- Start plant move loop
             plantMoveConnection = Services.RunService.Heartbeat:Connect(function()
@@ -416,8 +425,9 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
                 plantMoveConnection = nil
             end
             
-            -- Clear moved plants tracker
+            -- Clear all trackers
             movedPlants = {}
+            currentlyMovingPlants = {}
         end
     end,
 })
