@@ -46,7 +46,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🟢")
+local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 
 -- ================================================================
 -- PLANT MOVE SYSTEM
@@ -267,39 +267,43 @@ local function movePlant(plantToMove, targetPlantName)
             return
         end
 
+        -- Store original position for distance check
+        local originalPosition = plantToMove:GetPivot().Position
+
         -- Step 1: Pickup the plant
         print("🔧 Picking up plant:", plantToMove.Name)
         local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
         
         if pickupSuccess then
-            -- Wait longer for pickup to fully process (trowel system needs time)
-            task.wait(1) 
+            -- Wait for pickup to fully process (trowel system needs time)
+            task.wait(0.8) 
             
             -- Step 2: Place the plant directly at target plant's position
             local placementCFrame = CFrame.new(
-                targetPosition.X + math.random(-3, 3), -- Small random offset
+                targetPosition.X + math.random(-4, 4), -- Slightly larger random offset
                 targetPosition.Y,
-                targetPosition.Z + math.random(-3, 3)  -- Small random offset
+                targetPosition.Z + math.random(-4, 4)  -- Slightly larger random offset
             )
             
-            print("🔧 Placing plant directly at target location:", placementCFrame.Position)
+            print("🔧 Placing plant at target location:", placementCFrame.Position)
             
-            -- The TrowelRemote Place sometimes returns nil even on success, so we check differently
+            -- Place the plant
             TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
             
-            -- Wait longer for placement animation to complete (trowel system has 0.4s delay + extra)
-            task.wait(1.5)
+            -- Wait for placement animation to complete (trowel system has 0.4s + animation time)
+            task.wait(1.2)
             
-            -- Check if plant was successfully moved by seeing if it's now closer to target
-            local currentPosition = plantToMove:GetPivot().Position
-            local distanceToTarget = (currentPosition - targetPosition).Magnitude
+            -- Check if plant was successfully moved by comparing to original position
+            local newPosition = plantToMove:GetPivot().Position
+            local distanceMoved = (newPosition - originalPosition).Magnitude
+            local distanceToTarget = (newPosition - targetPosition).Magnitude
             
-            -- If plant is now within 10 blocks of target, consider it a success
-            if distanceToTarget <= 10 then
-                print("✅ Plant moved successfully")
+            -- If plant moved at least 5 blocks and is within 15 blocks of target, consider success
+            if distanceMoved >= 5 and distanceToTarget <= 15 then
+                print("✅ Plant moved successfully! Distance moved:", math.floor(distanceMoved), "blocks")
                 moveSuccess = true
             else
-                print("❌ Plant may not have moved properly")
+                print("❌ Plant may not have moved properly. Distance moved:", math.floor(distanceMoved), "blocks")
             end
         else
             print("❌ Failed to pickup plant")
@@ -307,7 +311,7 @@ local function movePlant(plantToMove, targetPlantName)
     end)
     
     if not success then
-        print("❌ Error moving plant")
+        print("❌ Error moving plant:", debug.traceback())
     end
     
     -- Clear the moving flag for this specific plant
@@ -321,10 +325,10 @@ local function performPlantMove()
         return 
     end
     
-    -- Add delay between moves (trowel system needs time to complete animations)
+    -- Add delay between moves (trowel system needs time: 0.4s + animation = ~2 seconds minimum)
     local currentTime = tick()
-    if currentTime - lastMoveTime < 3 then
-        return -- Not enough time has passed for next move (trowel needs 3+ seconds)
+    if currentTime - lastMoveTime < 2.5 then
+        return -- Not enough time has passed for next move
     end
     
     -- Check if we have plants to move and targets
@@ -340,84 +344,95 @@ local function performPlantMove()
     end
     
     if not hasToMove or not hasTargets then
-        print("🌱 No plants selected to move or no target locations")
         return
     end
     
-    -- Move each selected plant type to each target location
+    -- Find target plant name first
+    local targetPlantName = nil
+    for targetName, isTargetSelected in pairs(PlantsToMoveTo) do
+        if isTargetSelected then
+            targetPlantName = targetName
+            break
+        end
+    end
+    
+    if not targetPlantName then
+        return
+    end
+    
+    -- Find the next plant to move from ANY selected type
+    local plantToMove = nil
+    local plantTypeName = nil
+    
     for plantName, isSelected in pairs(PlantsToMove) do
         if isSelected then
-            local plantsToMove = findPlantsByName(plantName)
-            print("🔍 Found", #plantsToMove, plantName, "plants")
+            local plantsOfThisType = findPlantsByName(plantName)
             
-            if #plantsToMove > 0 then
-                -- Find a target plant name
-                local targetPlantName = nil
-                for targetName, isTargetSelected in pairs(PlantsToMoveTo) do
-                    if isTargetSelected then
-                        targetPlantName = targetName
-                        break
-                    end
+            -- Look for an unmoved plant of this type
+            for _, plant in pairs(plantsOfThisType) do
+                local plantId = tostring(plant)
+                if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
+                    plantToMove = plant
+                    plantTypeName = plantName
+                    break
                 end
-                
-                if targetPlantName then
-                    -- Find next plant to move (one by one)
-                    local plantToMove = nil
-                    local availableCount = 0
-                    for _, plant in pairs(plantsToMove) do
-                        local plantId = tostring(plant)
-                        if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
-                            availableCount = availableCount + 1
-                            if not plantToMove then
-                                plantToMove = plant
-                            end
-                        end
-                    end
-                    
-                    print("🔍 Found", availableCount, "unmoved", plantName, "plants")
-                    
-                    if plantToMove then
-                        local plantId = tostring(plantToMove)
-                        print("🌱 Moving", plantToMove.Name, "to", targetPlantName, "area")
-                        
-                        lastMoveTime = currentTime -- Update last move time BEFORE moving
-                        
-                        if movePlant(plantToMove, targetPlantName) then
-                            -- Mark this plant as moved
-                            movedPlants[plantId] = true
-                            print("✅ Plant moved successfully - will continue to next plant in 1.5 seconds...")
-                        else
-                            print("❌ Plant move failed - will try next plant in 1.5 seconds...")
-                        end
-                        
-                        -- Exit after attempting to move one plant, let next cycle handle the next one
-                        return
-                    else
-                        print("🌱 All", plantName, "plants have been moved!")
-                    end
-                else
-                    print("❌ No target plant selected")
-                end
-            else
-                print("🌱 No", plantName, "plants found on farm")
+            end
+            
+            -- If we found a plant to move, break out of the type loop
+            if plantToMove then
+                break
             end
         end
     end
     
-    print("🌱 All selected plants have been processed!")
+    -- If we found a plant to move, move it
+    if plantToMove then
+        local plantId = tostring(plantToMove)
+        print("🌱 Moving", plantToMove.Name, "(" .. plantTypeName .. ") to", targetPlantName, "area")
+        
+        lastMoveTime = currentTime -- Update last move time BEFORE moving
+        
+        if movePlant(plantToMove, targetPlantName) then
+            -- Mark this plant as moved
+            movedPlants[plantId] = true
+            print("✅ Plant moved successfully - next plant in ~2.5 seconds...")
+        else
+            print("❌ Plant move failed - will try next plant in ~2.5 seconds...")
+        end
+    else
+        -- No more plants to move - check if we should reset
+        local totalUnmovedPlants = 0
+        for plantName, isSelected in pairs(PlantsToMove) do
+            if isSelected then
+                local plantsOfThisType = findPlantsByName(plantName)
+                for _, plant in pairs(plantsOfThisType) do
+                    local plantId = tostring(plant)
+                    if not movedPlants[plantId] then
+                        totalUnmovedPlants = totalUnmovedPlants + 1
+                    end
+                end
+            end
+        end
+        
+        if totalUnmovedPlants == 0 then
+            print("� All selected plants have been moved! Resetting tracker...")
+            -- Reset moved plants tracker to allow moving them again
+            movedPlants = {}
+        end
+    end
 end
 
 -- Plant Move toggle
 AutoMoveGroupBox:AddToggle("PlantMove", {
-    Text = "Start Plant Move",
-    Tooltip = "Move ALL selected plant types to target locations using trowel",
+    Text = "Auto Move Plants (One by One)",
+    Tooltip = "Continuously move ALL selected plant types to target locations one by one using trowel",
     Default = false,
     Callback = function(Value)
         PlantMoveEnabled = Value
         print("[cb] Plant Move toggled:", Value)
         
         if Value then
-            Library:Notify("🌱 Plant Move enabled!", 3)
+            Library:Notify("🌱 Auto Plant Move enabled! Moving plants one by one...", 3)
             
             -- Clear moved plants tracker for fresh start
             movedPlants = {}
@@ -429,7 +444,7 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
                 performPlantMove()
             end)
         else
-            Library:Notify("🌱 Plant Move disabled!", 3)
+            Library:Notify("🌱 Auto Plant Move disabled!", 3)
             
             -- Stop plant move loop
             if plantMoveConnection then
@@ -444,6 +459,15 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
         end
     end,
 })
+
+-- Add reset button
+AutoMoveGroupBox:AddButton("Reset Move Tracker", function()
+    movedPlants = {}
+    currentlyMovingPlants = {}
+    lastMoveTime = 0
+    Library:Notify("🔄 Plant move tracker reset! All plants can be moved again.", 3)
+    print("🔄 Move tracker reset - all plants available for moving again")
+end)
 
 -- ================================================================
 -- AUTO MOVE INITIALIZATION COMPLETE
