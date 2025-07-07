@@ -46,7 +46,7 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-local AutoMoveGroupBox = Tabs.Essential:AddRightGroupbox("Auto Move 🚀")
+local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 
 -- ================================================================
 -- AUTO TELEPORT SYSTEM
