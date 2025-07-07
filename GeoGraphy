@@ -323,7 +323,7 @@ local function performPlantMove()
     
     -- Add delay between moves (don't block with wait)
     local currentTime = tick()
-    if currentTime - lastMoveTime < 1 then
+    if currentTime - lastMoveTime < 1.5 then
         return -- Not enough time has passed for next move
     end
     
@@ -340,6 +340,7 @@ local function performPlantMove()
     end
     
     if not hasToMove or not hasTargets then
+        print("🌱 No plants selected to move or no target locations")
         return
     end
     
@@ -347,6 +348,7 @@ local function performPlantMove()
     for plantName, isSelected in pairs(PlantsToMove) do
         if isSelected then
             local plantsToMove = findPlantsByName(plantName)
+            print("🔍 Found", #plantsToMove, plantName, "plants")
             
             if #plantsToMove > 0 then
                 -- Find a target plant name
@@ -361,35 +363,48 @@ local function performPlantMove()
                 if targetPlantName then
                     -- Find next plant to move (one by one)
                     local plantToMove = nil
+                    local availableCount = 0
                     for _, plant in pairs(plantsToMove) do
                         local plantId = tostring(plant)
                         if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
-                            plantToMove = plant
-                            break
+                            availableCount = availableCount + 1
+                            if not plantToMove then
+                                plantToMove = plant
+                            end
                         end
                     end
+                    
+                    print("🔍 Found", availableCount, "unmoved", plantName, "plants")
                     
                     if plantToMove then
                         local plantId = tostring(plantToMove)
                         print("🌱 Moving", plantToMove.Name, "to", targetPlantName, "area")
                         
-                        lastMoveTime = currentTime -- Update last move time
+                        lastMoveTime = currentTime -- Update last move time BEFORE moving
                         
                         if movePlant(plantToMove, targetPlantName) then
                             -- Mark this plant as moved
                             movedPlants[plantId] = true
-                            print("✅ Plant moved successfully - continuing to next plant...")
+                            print("✅ Plant moved successfully - will continue to next plant in 1.5 seconds...")
                         else
-                            print("❌ Plant move failed - continuing to next plant...")
+                            print("❌ Plant move failed - will try next plant in 1.5 seconds...")
                         end
                         
                         -- Exit after attempting to move one plant, let next cycle handle the next one
                         return
+                    else
+                        print("🌱 All", plantName, "plants have been moved!")
                     end
+                else
+                    print("❌ No target plant selected")
                 end
+            else
+                print("🌱 No", plantName, "plants found on farm")
             end
         end
     end
+    
+    print("🌱 All selected plants have been processed!")
 end
 
 -- Plant Move toggle
