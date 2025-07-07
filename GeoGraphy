@@ -140,6 +140,7 @@ AutoMoveGroupBox:AddDropdown("PlantsToMoveTo", {
 local plantMoveConnection = nil
 local currentlyMovingPlants = {} -- Track plants currently being moved
 local movedPlants = {} -- Track plants that have already been moved
+local lastMoveTime = 0 -- Track time of last move to add delays
 
 -- Function to get player's farm
 local function getMyFarm()
@@ -320,6 +321,12 @@ local function performPlantMove()
         return 
     end
     
+    -- Add delay between moves (don't block with wait)
+    local currentTime = tick()
+    if currentTime - lastMoveTime < 1 then
+        return -- Not enough time has passed for next move
+    end
+    
     -- Check if we have plants to move and targets
     local hasToMove = false
     local hasTargets = false
@@ -366,14 +373,18 @@ local function performPlantMove()
                         local plantId = tostring(plantToMove)
                         print("🌱 Moving", plantToMove.Name, "to", targetPlantName, "area")
                         
+                        lastMoveTime = currentTime -- Update last move time
+                        
                         if movePlant(plantToMove, targetPlantName) then
                             -- Mark this plant as moved
                             movedPlants[plantId] = true
-                            print("✅ Plant moved successfully")
-                            task.wait(1) -- Wait between successful moves
+                            print("✅ Plant moved successfully - continuing to next plant...")
                         else
-                            task.wait(0.5) -- Shorter wait on failure
+                            print("❌ Plant move failed - continuing to next plant...")
                         end
+                        
+                        -- Exit after attempting to move one plant, let next cycle handle the next one
+                        return
                     end
                 end
             end
@@ -396,6 +407,7 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
             -- Clear moved plants tracker for fresh start
             movedPlants = {}
             currentlyMovingPlants = {}
+            lastMoveTime = 0 -- Reset timing
             
             -- Start plant move loop
             plantMoveConnection = Services.RunService.Heartbeat:Connect(function()
@@ -413,6 +425,7 @@ AutoMoveGroupBox:AddToggle("PlantMove", {
             -- Clear all trackers
             movedPlants = {}
             currentlyMovingPlants = {}
+            lastMoveTime = 0
         end
     end,
 })
