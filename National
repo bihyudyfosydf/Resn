@@ -1647,6 +1647,555 @@ PrehistoricQuestGroupBox:AddButton("Show Quest Details", function()
 end)
 
 -- ================================================================
+-- AUTO HARVEST SYSTEM (ULTRA SAFE VERSION)
+-- ================================================================
+local AutoHarvestGroupBox = EventTab:AddRightGroupbox("Auto Harvest 🌾")
+
+-- Variables for Auto Harvest system
+local AutoHarvestEnabled = false
+local autoHarvestConnection = nil
+local lastHarvestQuestCheck = 0
+
+-- Variables for quest-specific plant filtering (ULTRA SAFE)
+local QuestTargetCrops = {}
+
+-- Function to get player's farm with ULTRA SAFE verification
+local function getMyFarmUltraSafe()
+    for _, farm in workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data:FindFirstChild("Owner") and data.Owner.Value == LocalPlayer.Name then
+                -- ULTRA SAFETY: Double-check this is actually our farm
+                print("✅ ULTRA SAFE: Verified farm ownership for", LocalPlayer.Name)
+                return farm
+            end
+        end
+    end
+    print("❌ ULTRA SAFETY: Could not find player's farm")
+    return nil
+end
+
+-- Function to extract plant type from name (ULTRA SAFE)
+local function getPlantTypeFromNameUltraSafe(plantName)
+    if not plantName or type(plantName) ~= "string" then
+        print("❌ ULTRA SAFETY: Invalid plant name provided")
+        return nil
+    end
+    
+    -- Remove common suffixes and clean the name
+    local cleanName = plantName
+    cleanName = string.gsub(cleanName, " %[X%d+%]", "") -- Remove quantity indicators
+    cleanName = string.gsub(cleanName, "Seed$", "")    -- Remove "Seed" suffix
+    cleanName = string.gsub(cleanName, " Seed$", "")   -- Remove " Seed" suffix
+    cleanName = cleanName:gsub("^%s+", ""):gsub("%s+$", "") -- Trim whitespace
+    
+    print("🔍 ULTRA SAFE: Cleaned plant name:", plantName, "->", cleanName)
+    return cleanName
+end
+
+-- Function to equip harvest tool with ULTRA SAFE checks
+local function equipHarvestToolUltraSafe()
+    local player = LocalPlayer
+    local backpack = player:FindFirstChild("Backpack")
+    
+    if not backpack then
+        print("❌ ULTRA SAFETY: No backpack found")
+        return false
+    end
+    
+    if not player.Character or not player.Character:FindFirstChild("Humanoid") then
+        print("❌ ULTRA SAFETY: Character not ready for tool equipping")
+        return false
+    end
+
+    local harvestTool = backpack:FindFirstChild("Harvest Tool")
+    if harvestTool then
+        print("🔧 ULTRA SAFE: Equipping Harvest Tool...")
+        player.Character.Humanoid:EquipTool(harvestTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ ULTRA SAFETY: No Harvest Tool found in backpack")
+        return false
+    end
+end
+
+-- Function to check if a plant can be harvested (ULTRA SAFE)
+local function canHarvestUltraSafe(plant)
+    if not plant or not plant.Parent then
+        return false
+    end
+    
+    local prompt = plant:FindFirstChild("ProximityPrompt", true)
+    if not prompt then
+        return false
+    end
+    
+    if not prompt.Enabled then
+        return false
+    end
+    
+    return true
+end
+
+-- ULTRA SAFE harvest function with all security measures from REFACRORMAIN
+local function harvestPlantUltraSafe(plant, plantType)
+    -- ULTRA SAFETY CHECK 1: Verify the plant object is valid and stable
+    if not plant or not plant.Parent then
+        print("❌ ULTRA SAFETY: Plant object invalid or already removed")
+        return false
+    end
+
+    local prompt = plant:FindFirstChild("ProximityPrompt", true)
+    if not prompt then
+        print("❌ ULTRA SAFETY: No ProximityPrompt found on plant")
+        return false
+    end
+
+    -- Ensure we have a character and root part
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        print("❌ ULTRA SAFETY: Character not ready for harvest")
+        return false
+    end
+
+    -- ULTRA SAFETY CHECK 2: Store comprehensive plant identification data
+    local targetPlant = plant
+    local targetPlantName = plant.Name
+    local targetPlantParent = plant.Parent
+    local targetPlantPosition = plant:GetPivot().Position
+    local targetPrompt = prompt
+    local plantUID = tostring(plant) -- Unique object reference
+
+    print("🎯 ULTRA SAFE HARVEST: Targeting", targetPlantName, "at", targetPlantPosition, "UID:", plantUID)
+
+    -- ULTRA SAFETY CHECK 3: Verify this plant is in our quest target crops
+    if not QuestTargetCrops[plantType] then
+        print("❌ ULTRA SAFETY: Plant", targetPlantName, "is NOT in quest target crops - ABORTING")
+        return false
+    end
+
+    -- Get optimal position near the plant
+    local plantPosition = plant:GetPivot().Position
+    local optimalPosition = plantPosition + Vector3.new(0, 2, 0) -- Position directly above the plant
+
+    -- ULTRA SAFETY CHECK 4: Verify plant hasn't moved before teleporting
+    if (plant:GetPivot().Position - targetPlantPosition).Magnitude > 0.1 then
+        print("❌ ULTRA SAFETY: Plant moved since identification - ABORTING")
+        return false
+    end
+
+    -- Teleport to optimal position for collection
+    print("🚀 ULTRA SAFE: Teleporting to", optimalPosition)
+    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(optimalPosition)
+    task.wait(0.5) -- Wait for teleport to register properly
+
+    -- ULTRA SAFETY CHECK 5: Verify plant still exists and hasn't changed after teleport
+    if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
+        print("❌ ULTRA SAFETY: Target plant disappeared or moved after teleport - ABORTING")
+        return false
+    end
+
+    if targetPlant.Name ~= targetPlantName or tostring(targetPlant) ~= plantUID then
+        print("❌ ULTRA SAFETY: Plant reference changed after teleport - ABORTING")
+        return false
+    end
+
+    -- Get even closer to ensure proximity trigger
+    local closePosition = plantPosition + Vector3.new(0, 0.5, 0)
+    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(closePosition)
+    task.wait(0.3) -- Additional wait for proximity to activate
+
+    -- ULTRA SAFETY CHECK 6: Verify distance to target plant is reasonable
+    local currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
+    if currentDistance > 8 then
+        print("❌ ULTRA SAFETY: Too far from target plant after positioning! Distance:", currentDistance)
+        return false
+    end
+
+    -- ULTRA SAFETY CHECK 7: Re-verify the plant after positioning
+    if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
+        print("❌ ULTRA SAFETY: Target plant disappeared after positioning - ABORTING")
+        return false
+    end
+
+    if targetPlant.Name ~= targetPlantName then
+        print("❌ ULTRA SAFETY: Plant name changed after positioning - ABORTING")
+        return false
+    end
+
+    -- Check if prompt is still enabled after positioning
+    if not prompt.Enabled then
+        print("❌ ULTRA SAFETY: ProximityPrompt disabled after positioning")
+        return false
+    end
+
+    -- Try fireproximityprompt multiple times for better reliability
+    local success = false
+    local maxAttempts = 3
+
+    for attempt = 1, maxAttempts do
+        -- ULTRA SAFETY CHECK 8: Re-verify target before each attempt
+        if not targetPlant or not targetPlant.Parent then
+            print("❌ ULTRA SAFETY: Target plant no longer exists at attempt", attempt)
+            break
+        end
+
+        if targetPlant.Name ~= targetPlantName or tostring(targetPlant) ~= plantUID then
+            print("❌ ULTRA SAFETY: Plant reference corrupted at attempt", attempt)
+            break
+        end
+
+        -- ULTRA SAFETY CHECK 9: Verify we're still close to the EXACT target
+        local attemptDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
+        if attemptDistance > 10 then
+            print("❌ ULTRA SAFETY: Moved too far from target at attempt", attempt, "Distance:", attemptDistance)
+            break
+        end
+
+        print("🔄 ULTRA SAFE: Harvest attempt", attempt, "on", targetPlantName)
+
+        local attemptSuccess = pcall(function()
+            -- ULTRA SAFETY CHECK 10: Triple-verify before firing prompt
+            local currentPrompt = targetPlant:FindFirstChild("ProximityPrompt", true)
+            if not currentPrompt then
+                error("Prompt disappeared during harvest attempt")
+            end
+
+            if currentPrompt ~= targetPrompt then
+                error("Prompt reference changed during harvest attempt")
+            end
+
+            if tostring(targetPlant) ~= plantUID then
+                error("Plant UID changed during harvest attempt")
+            end
+
+            if targetPlant.Name ~= targetPlantName then
+                error("Plant name changed during harvest attempt")
+            end
+
+            -- Only fire if ALL safety checks pass
+            fireproximityprompt(currentPrompt)
+        end)
+
+        if attemptSuccess then
+            task.wait(0.3) -- Wait for collection to process
+
+            -- Check if the SPECIFIC plant/fruit still exists (successful collection removes it)
+            if not targetPlant.Parent then
+                success = true
+                print("✅ ULTRA SAFE: Successfully harvested target plant:", targetPlantName, "UID:", plantUID)
+                break
+            end
+        else
+            print("⚠️ ULTRA SAFE: Attempt", attempt, "failed safety checks for", targetPlantName)
+        end
+
+        -- If not successful and not the last attempt, try repositioning
+        if not success and attempt < maxAttempts then
+            -- ULTRA SAFETY CHECK 11: Only reposition if target still valid
+            if targetPlant and targetPlant.Parent and targetPlant.Name == targetPlantName then
+                local retryPosition = plantPosition + Vector3.new(0.2, 0.3, 0.2)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(retryPosition)
+                task.wait(0.2)
+            else
+                print("❌ ULTRA SAFETY: Target invalid for repositioning, stopping attempts")
+                break
+            end
+        end
+    end
+
+    -- Final check - if the SPECIFIC target plant is gone, collection was successful
+    if not targetPlant.Parent then
+        success = true
+        print("✅ ULTRA SAFE: Confirmed successful harvest of", targetPlantName)
+    else
+        print("❌ ULTRA SAFE: Failed to harvest", targetPlantName, "after", maxAttempts, "attempts")
+    end
+
+    return success
+end
+
+-- Function to find and harvest specific crop type with ULTRA SAFE verification
+local function findAndHarvestCropUltraSafe(cropType, questInfo)
+    local myFarm = getMyFarmUltraSafe()
+    if not myFarm then
+        print("❌ ULTRA SAFETY: Could not find player's farm")
+        return false
+    end
+
+    -- Check if there's a nested Farm folder
+    local innerFarm = myFarm:FindFirstChild("Farm")
+    if innerFarm then
+        myFarm = innerFarm
+    end
+
+    local important = myFarm:FindFirstChild("Important")
+    if not important then
+        print("❌ ULTRA SAFETY: Farm Important folder not found")
+        return false
+    end
+
+    -- Double-check this is actually our farm by verifying owner
+    local data = important:FindFirstChild("Data")
+    if not data or not data:FindFirstChild("Owner") or data.Owner.Value ~= LocalPlayer.Name then
+        print("❌ ULTRA SAFETY: Farm ownership verification failed")
+        return false
+    end
+
+    local plantsPhysical = important:FindFirstChild("Plants_Physical")
+    if not plantsPhysical then
+        print("❌ ULTRA SAFETY: Plants_Physical folder not found")
+        return false
+    end
+
+    -- Find harvestable crops of the specified type with ULTRA SAFE filtering
+    local foundCrops = {}
+    
+    for _, plant in pairs(plantsPhysical:GetChildren()) do
+        -- ULTRA SAFETY: Check if auto harvest is still enabled
+        if not AutoHarvestEnabled then
+            print("❌ ULTRA SAFETY: Auto harvest was disabled during operation")
+            break
+        end
+
+        -- Check if this is the exact crop type we need
+        if plant.Name == cropType and canHarvestUltraSafe(plant) then
+            -- ULTRA SAFETY: Verify this plant type is in our quest targets
+            local plantType = getPlantTypeFromNameUltraSafe(plant.Name)
+            if plantType and QuestTargetCrops[plantType] then
+                print("✅ ULTRA SAFE: Found valid quest target:", plant.Name)
+                table.insert(foundCrops, plant)
+            else
+                print("⏭️ ULTRA SAFETY: Skipping non-quest plant:", plant.Name)
+            end
+        end
+        
+        -- Also check for fruits in fruit folders with ULTRA SAFE verification
+        local fruitsFolder = plant:FindFirstChild("Fruits") or plant:FindFirstChild("Fruit") or plant:FindFirstChild("Fruit_Spawn")
+        if fruitsFolder then
+            -- ULTRA SAFETY: Only check fruits if parent plant is the quest target
+            local parentPlantType = getPlantTypeFromNameUltraSafe(plant.Name)
+            if parentPlantType and QuestTargetCrops[parentPlantType] then
+                for _, fruit in pairs(fruitsFolder:GetChildren()) do
+                    if fruit.Name == cropType and canHarvestUltraSafe(fruit) then
+                        local fruitType = getPlantTypeFromNameUltraSafe(fruit.Name)
+                        if fruitType and QuestTargetCrops[fruitType] then
+                            print("✅ ULTRA SAFE: Found valid quest fruit:", fruit.Name)
+                            table.insert(foundCrops, fruit)
+                        end
+                    end
+                end
+            else
+                print("⏭️ ULTRA SAFETY: Skipping fruits from non-quest plant:", plant.Name)
+            end
+        end
+    end
+
+    if #foundCrops == 0 then
+        print("❌ ULTRA SAFETY: No valid quest crops of type", cropType, "found on farm")
+        return false
+    end
+
+    print("🌾 ULTRA SAFE: Found", #foundCrops, "valid quest crops of type", cropType)
+
+    -- Harvest the first available crop with ULTRA SAFE verification
+    local crop = foundCrops[1]
+    
+    -- FINAL ULTRA SAFETY CHECK: Verify crop is still valid before harvest
+    if not crop or not crop.Parent then
+        print("❌ ULTRA SAFETY: Crop disappeared before harvest attempt")
+        return false
+    end
+    
+    local cropType = getPlantTypeFromNameUltraSafe(crop.Name)
+    if not cropType or not QuestTargetCrops[cropType] then
+        print("❌ ULTRA SAFETY: Crop no longer in quest targets before harvest")
+        return false
+    end
+    
+    local success = harvestPlantUltraSafe(crop, cropType)
+    
+    if success then
+        local quest = questInfo.quest
+        local progress = quest.Progress or 0
+        local target = quest.Target or 1
+        Library:Notify("🌾 ULTRA SAFE: Harvested " .. cropType .. "! Progress: " .. (progress + 1) .. "/" .. target, 2)
+        return true
+    end
+
+    return false
+end
+
+-- Main auto harvest function with ULTRA SAFE quest detection
+local function performAutoHarvestUltraSafe()
+    if not AutoHarvestEnabled then return end
+    
+    -- Don't check too frequently (every 2 seconds)
+    local currentTime = tick()
+    if currentTime - lastHarvestQuestCheck < 2 then
+        return
+    end
+    lastHarvestQuestCheck = currentTime
+    
+    -- ULTRA SAFETY: Clear previous quest targets
+    QuestTargetCrops = {}
+    
+    -- ULTRA SAFETY: Equip harvest tool first
+    if not equipHarvestToolUltraSafe() then
+        print("❌ ULTRA SAFETY: Could not equip harvest tool")
+        return
+    end
+    
+    -- Priority order: Blueberry (150) > Strawberry (50) > Apple (25) > Coconut (10) > Dragon Fruit (5)
+    
+    -- Look for "Harvest 150 Blueberries" quest first (highest quantity)
+    local blueberryQuest = getQuestByName("harvest.*blueberr")
+    
+    if blueberryQuest then
+        local quest = blueberryQuest.quest
+        local displayData = blueberryQuest.displayData
+        
+        print("🫐 ULTRA SAFE: Found blueberry harvest quest:", displayData.Title)
+        print("🫐 Progress:", quest.Progress or 0, "/", quest.Target or 150)
+        
+        if not quest.Completed then
+            -- ULTRA SAFETY: Add to quest targets
+            QuestTargetCrops["Blueberry"] = true
+            findAndHarvestCropUltraSafe("Blueberry", blueberryQuest)
+        else
+            print("✅ Blueberry quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Harvest 50 Strawberries" quest
+    local strawberryQuest = getQuestByName("harvest.*strawberr")
+    
+    if strawberryQuest then
+        local quest = strawberryQuest.quest
+        local displayData = strawberryQuest.displayData
+        
+        print("🍓 ULTRA SAFE: Found strawberry harvest quest:", displayData.Title)
+        print("🍓 Progress:", quest.Progress or 0, "/", quest.Target or 50)
+        
+        if not quest.Completed then
+            -- ULTRA SAFETY: Add to quest targets
+            QuestTargetCrops["Strawberry"] = true
+            findAndHarvestCropUltraSafe("Strawberry", strawberryQuest)
+        else
+            print("✅ Strawberry quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Harvest 25 Apples" quest
+    local appleQuest = getQuestByName("harvest.*apple")
+    
+    if appleQuest then
+        local quest = appleQuest.quest
+        local displayData = appleQuest.displayData
+        
+        print("🍎 ULTRA SAFE: Found apple harvest quest:", displayData.Title)
+        print("🍎 Progress:", quest.Progress or 0, "/", quest.Target or 25)
+        
+        if not quest.Completed then
+            -- ULTRA SAFETY: Add to quest targets
+            QuestTargetCrops["Apple"] = true
+            findAndHarvestCropUltraSafe("Apple", appleQuest)
+        else
+            print("✅ Apple quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Harvest 10 Coconuts" quest
+    local coconutQuest = getQuestByName("harvest.*coconut")
+    
+    if coconutQuest then
+        local quest = coconutQuest.quest
+        local displayData = coconutQuest.displayData
+        
+        print("🥥 ULTRA SAFE: Found coconut harvest quest:", displayData.Title)
+        print("🥥 Progress:", quest.Progress or 0, "/", quest.Target or 10)
+        
+        if not quest.Completed then
+            -- ULTRA SAFETY: Add to quest targets
+            QuestTargetCrops["Coconut"] = true
+            findAndHarvestCropUltraSafe("Coconut", coconutQuest)
+        else
+            print("✅ Coconut quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Harvest 5 Dragon Fruits" quest
+    local dragonFruitQuest = getQuestByName("harvest.*dragon.*fruit")
+    
+    if dragonFruitQuest then
+        local quest = dragonFruitQuest.quest
+        local displayData = dragonFruitQuest.displayData
+        
+        print("🐉 ULTRA SAFE: Found dragon fruit harvest quest:", displayData.Title)
+        print("🐉 Progress:", quest.Progress or 0, "/", quest.Target or 5)
+        
+        if not quest.Completed then
+            -- ULTRA SAFETY: Add to quest targets
+            QuestTargetCrops["Dragon Fruit"] = true
+            findAndHarvestCropUltraSafe("Dragon Fruit", dragonFruitQuest)
+        else
+            print("✅ Dragon fruit quest already completed!")
+        end
+        return
+    end
+    
+    -- No relevant quests found
+    print("⏳ ULTRA SAFE: No harvest quests found - waiting for prehistoric harvest quests...")
+    if currentTime % 30 < 2 then
+        Library:Notify("⏳ Waiting for harvest quests...", 2)
+    end
+end
+
+-- Auto Harvest toggle with ULTRA SAFE error handling
+AutoHarvestGroupBox:AddToggle("AutoHarvest", {
+    Text = "Auto Harvest Quests (ULTRA SAFE)",
+    Tooltip = "ULTRA SAFE harvest system with 11+ security checks. Only harvests crops needed for active prehistoric quests.",
+    Default = false,
+    Callback = function(Value)
+        AutoHarvestEnabled = Value
+        print("[cb] ULTRA SAFE Auto Harvest toggled:", Value)
+        
+        if Value then
+            Library:Notify("🛡️🫐🍓🍎🥥🐉 ULTRA SAFE Auto Harvest enabled!", 3)
+            print("🛡️ ULTRA SAFE Auto Harvest started - comprehensive security active")
+            
+            -- ULTRA SAFETY: Clear quest targets on start
+            QuestTargetCrops = {}
+            
+            -- Start auto harvest loop with error handling
+            autoHarvestConnection = Services.RunService.Heartbeat:Connect(function()
+                local success, error = pcall(performAutoHarvestUltraSafe)
+                if not success then
+                    print("❌ ULTRA SAFETY: Auto harvest error:", error)
+                    Library:Notify("❌ ULTRA SAFE: Auto harvest error - check console", 3)
+                end
+            end)
+        else
+            Library:Notify("🛡️ ULTRA SAFE Auto Harvest disabled!", 3)
+            
+            -- ULTRA SAFETY: Clear quest targets on stop
+            QuestTargetCrops = {}
+            
+            -- Stop auto harvest loop
+            if autoHarvestConnection then
+                autoHarvestConnection:Disconnect()
+                autoHarvestConnection = nil
+            end
+        end
+    end,
+})
+
+-- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
 print("🎉 Event Tab with AutoHatch initialized successfully!")
