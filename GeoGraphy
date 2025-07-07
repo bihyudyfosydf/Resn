@@ -49,11 +49,6 @@ local LocalPlayer = Services.Players.LocalPlayer
 local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 
 -- ================================================================
--- ADD AUTO PLACE EGG GROUPBOX TO ESSENTIAL TAB
--- ================================================================
-local AutoEggGroupBox = Tabs.Essential:AddRightGroupbox("Auto Place Egg 🥚")
-
--- ================================================================
 -- PLANT MOVE SYSTEM
 -- ================================================================
 
@@ -456,7 +451,7 @@ local function performPlantMove()
         end
         
         if totalUnmovedPlants == 0 then
-            print("� All selected plants have been moved! Resetting tracker...")
+            print("  All selected plants have been moved! Resetting tracker...")
             -- Reset moved plants tracker to allow moving them again
             movedPlants = {}
         end
@@ -511,32 +506,49 @@ AutoMoveGroupBox:AddButton("Reset Move Tracker", function()
 end)
 
 -- ================================================================
--- EGG PLACEMENT SYSTEM
+-- AUTO PLACE EGG SYSTEM
 -- ================================================================
 
--- Get egg data from ReplicatedStorage
-local PetEggData = require(Services.ReplicatedStorage.Data.ModuleScripts.PetEggData)
+-- Add Auto Place Egg GroupBox to Essential tab
+local AutoPlaceEggGroupBox = Tabs.Essential:AddRightGroupbox("Auto Place Egg 🥚")
 
--- Variables for Egg Placement System
+-- Variables for Auto Place Egg system
 local EggsToPlace = {}
-local EggPlaceEnabled = false
+local AutoPlaceEggEnabled = false
+local autoPlaceEggConnection = nil
+local lastEggPlaceTime = 0
+local placedEggs = {} -- Track eggs that have been placed
 
--- Create egg type list from PetEggData
-local AllEggTypes = {}
-for eggName, _ in pairs(PetEggData) do
-    table.insert(AllEggTypes, eggName)
-end
-
--- Sort alphabetically for better UI
-table.sort(AllEggTypes)
+-- Complete list of all pet eggs in the game
+local AllPetEggs = {
+    "Common Egg",
+    "Uncommon Egg", 
+    "Rare Egg",
+    "Legendary Egg",
+    "Mythical Egg",
+    "Bug Egg",
+    "Exotic Bug Egg",
+    "Night Egg",
+    "Bee Egg",
+    "Anti Bee Egg",
+    "Premium Anti Bee Egg",
+    "Premium Night Egg",
+    "Common Summer Egg",
+    "Rare Summer Egg",
+    "Paradise Egg",
+    "Oasis Egg",
+    "Premium Oasis Egg",
+    "Dinosaur Egg",
+    "Fake Egg"
+}
 
 -- Eggs to place dropdown
-AutoEggGroupBox:AddDropdown("EggsToPlace", {
-    Values = AllEggTypes,
+AutoPlaceEggGroupBox:AddDropdown("EggsToPlace", {
+    Values = AllPetEggs,
     Default = {},
     Multi = true,
-    Text = "Eggs to Place",
-    Tooltip = "Select which egg types you want to place on your farm",
+    Text = "Eggs Wanna Place",
+    Tooltip = "Select which egg types you want to automatically place on your farm",
     Callback = function(Value)
         EggsToPlace = Value
         print("[cb] Eggs to place updated:", Value)
@@ -550,256 +562,246 @@ AutoEggGroupBox:AddDropdown("EggsToPlace", {
         end
         
         if #selectedNames > 0 then
-            print("🥚 Will place eggs:", table.concat(selectedNames, ", "))
+            print("🥚 Will place:", table.concat(selectedNames, ", "))
         else
             print("🥚 No eggs selected to place")
         end
     end,
 })
 
--- ================================================================
--- EGG PLACEMENT IMPLEMENTATION
--- ================================================================
-
--- Variables for egg placement
-local eggPlaceConnection = nil
-local lastEggPlaceTime = 0 -- Track time of last placement
-local currentEggIndex = 1 -- Track which egg type we're placing
-
--- Function to get player's inventory
-local function getPlayerInventory()
+-- Function to find egg tool in inventory
+local function findEggTool(eggName)
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then
-        return {}
+    if not backpack then 
+        return nil
     end
-    
-    local inventory = {}
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") then
-            table.insert(inventory, item.Name)
-        end
-    end
-    
-    return inventory
-end
 
--- Function to equip an egg tool
-local function equipEgg(eggName)
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then
-        return false
-    end
-    
-    -- Look for the egg in backpack
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name == eggName then
-            -- Equip the egg
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid:EquipTool(item)
-                task.wait(0.5) -- Wait for equip
-                return true
+    -- Check if an egg tool is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                -- Remove quantity indicators like [X5] from name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item matches the egg name
+                if string.find(cleanName:lower(), eggName:lower()) then
+                    print("✅ Egg already equipped:", itemName)
+                    return equippedItem
+                end
             end
         end
     end
-    
-    return false
-end
 
--- Function to get a valid position on player's farm
-local function getFarmPlacementPosition()
-    local myFarm = getMyFarm()
-    if not myFarm then
-        return nil
+    -- Look for egg in backpack
+    local eggTool = nil
+    
+    -- First try exact match
+    eggTool = backpack:FindFirstChild(eggName)
+    if eggTool and eggTool:IsA("Tool") then
+        print("✅ Found exact egg match:", eggName)
+        return eggTool
     end
     
-    -- Get farm bounds from the farm's primary part or first part
-    local farmPart = myFarm.PrimaryPart or myFarm:FindFirstChildOfClass("Part")
-    if not farmPart then
-        return nil
-    end
-    
-    local farmPosition = farmPart.Position
-    local farmSize = farmPart.Size
-    
-    -- Generate a random position within the farm bounds
-    local x = farmPosition.X + math.random(-farmSize.X/2 + 5, farmSize.X/2 - 5)
-    local z = farmPosition.Z + math.random(-farmSize.Z/2 + 5, farmSize.Z/2 - 5)
-    local y = farmPosition.Y + 5 -- Place slightly above the farm
-    
-    return Vector3.new(x, y, z)
-end
-
--- Function to place an egg
-local function placeEgg(eggName)
-    local success = pcall(function()
-        -- Check if player has this egg in inventory
-        local inventory = getPlayerInventory()
-        local hasEgg = false
-        for _, itemName in pairs(inventory) do
-            if itemName == eggName then
-                hasEgg = true
+    -- If no exact match, try partial matching
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name
+            -- Remove quantity indicators like [X5] from name
+            local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+            
+            -- Check if this item matches the egg name
+            if string.find(cleanName:lower(), eggName:lower()) then
+                eggTool = item
+                print("✅ Found egg partial match:", itemName)
                 break
             end
         end
-        
-        if not hasEgg then
-            print("❌ Don't have", eggName, "in inventory")
-            return false
-        end
-        
-        -- Equip the egg
-        if not equipEgg(eggName) then
-            print("❌ Failed to equip", eggName)
-            return false
-        end
-        
-        -- Get a valid position on the farm
-        local position = getFarmPlacementPosition()
-        if not position then
-            print("❌ Could not find valid farm position")
-            return false
-        end
-        
-        -- Get the PetEggService remote
-        local PetEggService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetEggService")
-        if not PetEggService then
-            print("❌ PetEggService remote not found!")
-            return false
-        end
-        
-        -- Place the egg using the remote
-        print("🥚 Placing", eggName, "at position:", position)
-        PetEggService:FireServer("CreateEgg", position)
-        
-        -- Wait for placement to complete
-        task.wait(1.5)
-        
-        print("✅ Placed", eggName, "successfully!")
-        return true
-    end)
-    
-    if not success then
-        print("❌ Error placing egg:", debug.traceback())
-        return false
     end
     
-    return true
+    return eggTool
 end
 
--- Main egg placing function
-local function performEggPlacement()
-    if not EggPlaceEnabled then
-        return
+-- Function to equip an egg tool
+local function equipEggTool(eggName)
+    local eggTool = findEggTool(eggName)
+    
+    if eggTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        -- Only equip if not already equipped
+        if eggTool.Parent == LocalPlayer.Backpack then
+            LocalPlayer.Character.Humanoid:EquipTool(eggTool)
+            task.wait(0.5) -- Wait for equip animation
+            print("🥚 Equipped egg:", eggTool.Name)
+            return LocalPlayer.Character:FindFirstChild(eggTool.Name)
+        else
+            -- Already equipped
+            return eggTool
+        end
+    end
+    
+    return nil
+end
+
+-- Function to get random position on player's farm
+local function getRandomFarmPosition()
+    local myFarm = getMyFarm()
+    if not myFarm then
+        print("❌ Player farm not found!")
+        return nil
+    end
+
+    local farmCenter = myFarm:GetPivot().Position
+    
+    -- Generate random position within farm bounds (adjust these values based on typical farm size)
+    local randomX = farmCenter.X + math.random(-30, 30)
+    local randomZ = farmCenter.Z + math.random(-30, 30)
+    local randomY = farmCenter.Y -- Keep Y at farm level
+    
+    return Vector3.new(randomX, randomY, randomZ)
+end
+
+-- Function to place an egg on the farm
+local function placeEgg(eggName)
+    -- Check if we have the egg in inventory and equip it
+    local equippedEggTool = equipEggTool(eggName)
+    if not equippedEggTool then
+        print("❌ Egg not found in inventory:", eggName)
+        return false
+    end
+
+    -- Get the PetEggService remote event
+    local PetEggService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetEggService")
+    if not PetEggService then
+        print("❌ PetEggService not found!")
+        return false
+    end
+
+    -- Get random position on farm
+    local placePosition = getRandomFarmPosition()
+    if not placePosition then
+        return false
+    end
+
+    -- Place the egg using the remote service
+    local success = pcall(function()
+        PetEggService:FireServer("CreateEgg", placePosition)
+    end)
+
+    if success then
+        print("🥚 Placed egg:", eggName, "at position:", placePosition)
+        Library:Notify("🥚 Placed " .. eggName .. " on farm!", 2)
+        return true
+    else
+        print("❌ Failed to place egg:", eggName)
+        return false
+    end
+end
+
+-- Main auto place egg function
+local function performAutoPlaceEgg()
+    if not AutoPlaceEggEnabled then 
+        return 
     end
     
     -- Add delay between placements
     local currentTime = tick()
-    if currentTime - lastEggPlaceTime < 3 then
+    if currentTime - lastEggPlaceTime < 2 then
         return -- Not enough time has passed for next placement
     end
     
-    -- Check if we have any eggs to place
-    local hasEggsToPlace = false
-    local selectedEggs = {}
-    
-    for eggName, isSelected in pairs(EggsToPlace) do
-        if isSelected then
-            hasEggsToPlace = true
-            table.insert(selectedEggs, eggName)
-        end
+    -- Check if we have eggs selected
+    local hasEggsSelected = false
+    for _, selected in pairs(EggsToPlace) do
+        if selected then hasEggsSelected = true break end
     end
     
-    if not hasEggsToPlace or #selectedEggs == 0 then
+    if not hasEggsSelected then
         return
     end
     
-    -- Cycle through selected eggs
-    if currentEggIndex > #selectedEggs then
-        currentEggIndex = 1
+    -- Find the next egg to place
+    local eggToPlace = nil
+    
+    for eggName, isSelected in pairs(EggsToPlace) do
+        if isSelected then
+            local eggId = eggName .. "_" .. tostring(currentTime)
+            
+            -- Check if we have this egg in inventory
+            local eggTool = findEggTool(eggName)
+            if eggTool and not placedEggs[eggId] then
+                eggToPlace = eggName
+                placedEggs[eggId] = true
+                break
+            end
+        end
     end
     
-    local eggToPlace = selectedEggs[currentEggIndex]
-    
+    -- If we found an egg to place, place it
     if eggToPlace then
-        print("🥚 Attempting to place:", eggToPlace)
-        lastEggPlaceTime = currentTime -- Update last placement time BEFORE placing
+        print("🥚 Placing egg:", eggToPlace)
+        
+        lastEggPlaceTime = currentTime -- Update last place time BEFORE placing
         
         if placeEgg(eggToPlace) then
-            print("✅ Egg placed successfully - next egg in ~3 seconds...")
+            print("✅ Egg placed successfully - next egg in ~2 seconds...")
         else
-            print("❌ Egg placement failed - will try next egg in ~3 seconds...")
+            print("❌ Egg placement failed - will try next egg in ~2 seconds...")
         end
-        
-        -- Move to next egg for next cycle
-        currentEggIndex = currentEggIndex + 1
+    else
+        -- No more eggs to place or no eggs in inventory
+        print("⏭️ No available eggs to place in inventory")
     end
 end
 
--- Egg Place toggle
-AutoEggGroupBox:AddToggle("EggPlace", {
+-- Auto Place Egg toggle
+AutoPlaceEggGroupBox:AddToggle("AutoPlaceEgg", {
     Text = "Auto Place Eggs",
-    Tooltip = "Continuously place selected egg types on your farm",
+    Tooltip = "Continuously place selected egg types on your farm when available in inventory",
     Default = false,
     Callback = function(Value)
-        EggPlaceEnabled = Value
-        print("[cb] Egg Place toggled:", Value)
+        AutoPlaceEggEnabled = Value
+        print("[cb] Auto Place Egg toggled:", Value)
         
         if Value then
-            Library:Notify("🥚 Auto Egg Place enabled! Placing eggs on farm...", 3)
+            Library:Notify("🥚 Auto Place Egg enabled! Placing eggs from inventory...", 3)
             
-            -- Reset egg placement variables
-            currentEggIndex = 1
-            lastEggPlaceTime = 0
+            -- Clear placed eggs tracker for fresh start
+            placedEggs = {}
+            lastEggPlaceTime = 0 -- Reset timing
             
-            -- Start egg placement loop
-            eggPlaceConnection = Services.RunService.Heartbeat:Connect(function()
-                performEggPlacement()
+            -- Start auto place egg loop
+            autoPlaceEggConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoPlaceEgg()
             end)
         else
-            Library:Notify("🥚 Auto Egg Place disabled!", 3)
+            Library:Notify("🥚 Auto Place Egg disabled!", 3)
             
-            -- Stop egg placement loop
-            if eggPlaceConnection then
-                eggPlaceConnection:Disconnect()
-                eggPlaceConnection = nil
+            -- Stop auto place egg loop
+            if autoPlaceEggConnection then
+                autoPlaceEggConnection:Disconnect()
+                autoPlaceEggConnection = nil
             end
             
-            -- Reset variables
-            currentEggIndex = 1
+            -- Clear trackers
+            placedEggs = {}
             lastEggPlaceTime = 0
         end
     end,
 })
 
--- Add button to show current inventory
-AutoEggGroupBox:AddButton("Check Inventory", function()
-    local inventory = getPlayerInventory()
-    local eggCount = 0
-    local eggList = {}
-    
-    -- Count eggs in inventory
-    for _, itemName in pairs(inventory) do
-        -- Check if item is an egg
-        if PetEggData[itemName] then
-            eggCount = eggCount + 1
-            table.insert(eggList, itemName)
-        end
-    end
-    
-    if eggCount > 0 then
-        print("🎒 Eggs in inventory (" .. eggCount .. "):", table.concat(eggList, ", "))
-        Library:Notify("🎒 You have " .. eggCount .. " eggs in inventory", 3)
-    else
-        print("🎒 No eggs found in inventory")
-        Library:Notify("🎒 No eggs found in inventory", 3)
-    end
+-- Add reset button for egg placement
+AutoPlaceEggGroupBox:AddButton("Reset Egg Tracker", function()
+    placedEggs = {}
+    lastEggPlaceTime = 0
+    Library:Notify("🔄 Egg placement tracker reset! All eggs can be placed again.", 3)
+    print("🔄 Egg placement tracker reset - all eggs available for placing again")
 end)
 
 -- ================================================================
--- AUTO MOVE & EGG PLACEMENT INITIALIZATION COMPLETE
+-- AUTO MOVE INITIALIZATION COMPLETE
 -- ================================================================
-print("🚀 Auto Move & Auto Egg Place systems integrated with Essential tab!")
-Library:Notify("🚀 Auto Move & Auto Egg Place loaded!", 3)
+print("🚀 Auto Move system integrated with Essential tab!")
+Library:Notify("🚀 Auto Move loaded!", 3)
 
 -- Return success indicator
 return true 
