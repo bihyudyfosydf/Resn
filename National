@@ -1696,29 +1696,9 @@ end
 
 -- Function to equip harvest tool with ULTRA SAFE checks
 local function equipHarvestToolUltraSafe()
-    local player = LocalPlayer
-    local backpack = player:FindFirstChild("Backpack")
-    
-    if not backpack then
-        print("❌ ULTRA SAFETY: No backpack found")
-        return false
-    end
-    
-    if not player.Character or not player.Character:FindFirstChild("Humanoid") then
-        print("❌ ULTRA SAFETY: Character not ready for tool equipping")
-        return false
-    end
-
-    local harvestTool = backpack:FindFirstChild("Harvest Tool")
-    if harvestTool then
-        print("🔧 ULTRA SAFE: Equipping Harvest Tool...")
-        player.Character.Humanoid:EquipTool(harvestTool)
-        task.wait(0.5)
-        return true
-    else
-        print("❌ ULTRA SAFETY: No Harvest Tool found in backpack")
-        return false
-    end
+    -- ULTRA SAFETY: No harvest tool needed - just use proximity prompts directly
+    print("🔧 ULTRA SAFE: No harvest tool required - using direct proximity prompts")
+    return true
 end
 
 -- Function to check if a plant can be harvested (ULTRA SAFE)
@@ -1777,7 +1757,7 @@ local function harvestPlantUltraSafe(plant, plantType)
 
     -- Get optimal position near the plant
     local plantPosition = plant:GetPivot().Position
-    local optimalPosition = plantPosition + Vector3.new(0, 2, 0) -- Position directly above the plant
+    local optimalPosition = plantPosition + Vector3.new(0, 2, 0) -- Position directly above the plant (EXACT from REFACRORMAIN)
 
     -- ULTRA SAFETY CHECK 4: Verify plant hasn't moved before teleporting
     if (plant:GetPivot().Position - targetPlantPosition).Magnitude > 0.1 then
@@ -1785,10 +1765,10 @@ local function harvestPlantUltraSafe(plant, plantType)
         return false
     end
 
-    -- Teleport to optimal position for collection
+    -- Teleport to optimal position for collection (EXACT REFACRORMAIN method)
     print("🚀 ULTRA SAFE: Teleporting to", optimalPosition)
     LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(optimalPosition)
-    task.wait(0.5) -- Wait for teleport to register properly
+    task.wait(0.5) -- Wait for teleport to register properly (EXACT timing from REFACRORMAIN)
 
     -- ULTRA SAFETY CHECK 5: Verify plant still exists and hasn't changed after teleport
     if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
@@ -1801,10 +1781,10 @@ local function harvestPlantUltraSafe(plant, plantType)
         return false
     end
 
-    -- Get even closer to ensure proximity trigger
+    -- Get even closer to ensure proximity trigger (EXACT REFACRORMAIN method)
     local closePosition = plantPosition + Vector3.new(0, 0.5, 0)
     LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(closePosition)
-    task.wait(0.3) -- Additional wait for proximity to activate
+    task.wait(0.3) -- Additional wait for proximity to activate (EXACT timing from REFACRORMAIN)
 
     -- ULTRA SAFETY CHECK 6: Verify distance to target plant is reasonable
     local currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
@@ -2158,16 +2138,16 @@ end
 
 -- Auto Harvest toggle with ULTRA SAFE error handling
 AutoHarvestGroupBox:AddToggle("AutoHarvest", {
-    Text = "Auto Harvest Quests (ULTRA SAFE)",
-    Tooltip = "ULTRA SAFE harvest system with 11+ security checks. Only harvests crops needed for active prehistoric quests.",
+    Text = "Auto Harvest Quests",
+    Tooltip = "Auto harvest quest items",
     Default = false,
     Callback = function(Value)
         AutoHarvestEnabled = Value
         print("[cb] ULTRA SAFE Auto Harvest toggled:", Value)
         
         if Value then
-            Library:Notify("🛡️🫐🍓🍎🥥🐉 ULTRA SAFE Auto Harvest enabled!", 3)
-            print("🛡️ ULTRA SAFE Auto Harvest started - comprehensive security active")
+            Library:Notify("Auto Harvest On.", 3)
+            print("🛡️")
             
             -- ULTRA SAFETY: Clear quest targets on start
             QuestTargetCrops = {}
@@ -2176,12 +2156,12 @@ AutoHarvestGroupBox:AddToggle("AutoHarvest", {
             autoHarvestConnection = Services.RunService.Heartbeat:Connect(function()
                 local success, error = pcall(performAutoHarvestUltraSafe)
                 if not success then
-                    print("❌ ULTRA SAFETY: Auto harvest error:", error)
-                    Library:Notify("❌ ULTRA SAFE: Auto harvest error - check console", 3)
+                    print("Auto harvest error:", error)
+                    Library:Notify("❌ Auto harvest error", 3)
                 end
             end)
         else
-            Library:Notify("🛡️ ULTRA SAFE Auto Harvest disabled!", 3)
+            Library:Notify("Auto Harvest Off.", 3)
             
             -- ULTRA SAFETY: Clear quest targets on stop
             QuestTargetCrops = {}
@@ -2198,7 +2178,7 @@ AutoHarvestGroupBox:AddToggle("AutoHarvest", {
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
-print("🎉 Event Tab with AutoHatch initialized successfully!")
+print("🎉 Event Tab initialized successfully!")
 Library:Notify("🥚 AutoHatch Event Tab loaded!", 3)
 
 -- Return success indicator
