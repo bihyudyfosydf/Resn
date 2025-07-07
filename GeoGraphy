@@ -84,7 +84,7 @@ AutoMoveGroupBox:AddDropdown("PlantsToMove", {
     Default = {},
     Multi = true,
     Text = "Plants Wanna Move",
-    Tooltip = "Select which plants you want to move",
+    Tooltip = "Select which plant types you want to move (ALL plants of selected types)",
     Callback = function(Value)
         PlantsToMove = Value
         print("[cb] Plants to move updated:", Value)
@@ -98,7 +98,7 @@ AutoMoveGroupBox:AddDropdown("PlantsToMove", {
         end
         
         if #selectedNames > 0 then
-            Library:Notify("🌱 Moving: " .. table.concat(selectedNames, ", "), 3)
+            Library:Notify("🌱 Will move ALL: " .. table.concat(selectedNames, ", "), 3)
         else
             Library:Notify("🌱 No plants selected to move", 2)
         end
@@ -347,29 +347,39 @@ local function performPlantMove()
                 end
                 
                 if targetPlantName then
-                    -- Find a plant that hasn't been moved yet
-                    local plantToMove = nil
+                    -- Move ALL plants of this type, not just one
                     for _, plant in pairs(plantsToMove) do
                         local plantId = tostring(plant) -- Use object reference as unique ID
                         if not movedPlants[plantId] then
-                            plantToMove = plant
-                            break
+                            print("🌱 Moving", plant.Name, "near", targetPlantName)
+                            
+                            if movePlant(plant, targetPlantName) then
+                                -- Mark this plant as moved
+                                movedPlants[plantId] = true
+                                print("✅ Marked plant as moved:", plantId)
+                                task.wait(1) -- Shorter wait between moves for faster bulk moving
+                            else
+                                task.wait(0.5) -- Shorter wait on failure
+                            end
+                            
+                            -- Check if we should stop (toggle disabled)
+                            if not PlantMoveEnabled then
+                                return
+                            end
                         end
                     end
                     
-                    if plantToMove then
-                        print("🌱 Moving", plantToMove.Name, "near", targetPlantName)
-                        
-                        if movePlant(plantToMove, targetPlantName) then
-                            -- Mark this plant as moved
-                            local plantId = tostring(plantToMove)
-                            movedPlants[plantId] = true
-                            print("✅ Marked plant as moved:", plantId)
-                            task.wait(2) -- Wait longer between successful moves
-                        else
-                            task.wait(0.5) -- Shorter wait on failure
+                    -- After moving all plants of this type, show completion message
+                    local movedCount = 0
+                    for _, plant in pairs(plantsToMove) do
+                        local plantId = tostring(plant)
+                        if movedPlants[plantId] then
+                            movedCount = movedCount + 1
                         end
-                    else
+                    end
+                    
+                    if movedCount > 0 then
+                        Library:Notify("🎉 Moved " .. movedCount .. " " .. plantName .. " plants to " .. targetPlantName .. " area!", 3)
                         print("🎉 All " .. plantName .. " plants have been moved!")
                     end
                 end
@@ -381,7 +391,7 @@ end
 -- Plant Move toggle
 AutoMoveGroupBox:AddToggle("PlantMove", {
     Text = "Start Plant Move",
-    Tooltip = "Start moving selected plants to target locations using trowel",
+    Tooltip = "Move ALL selected plant types to target locations using trowel",
     Default = false,
     Callback = function(Value)
         PlantMoveEnabled = Value
