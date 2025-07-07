@@ -811,13 +811,7 @@ AutoPlaceEggGroupBox:AddToggle("AutoPlaceEgg", {
     end,
 })
 
--- Add reset button for egg placement
-AutoPlaceEggGroupBox:AddButton("Reset Egg Tracker", function()
-    placedEggs = {}
-    lastEggPlaceTime = 0
-    Library:Notify("🔄 Egg placement tracker reset! All eggs can be placed again.", 3)
-    print("🔄 Egg placement tracker reset - all eggs available for placing again")
-end)
+
 
 -- ================================================================
 -- AUTO MOVE INITIALIZATION COMPLETE
