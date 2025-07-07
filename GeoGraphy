@@ -506,6 +506,317 @@ AutoMoveGroupBox:AddButton("Reset Move Tracker", function()
 end)
 
 -- ================================================================
+-- AUTO PLACE TOOLS SYSTEM
+-- ================================================================
+
+-- Add Auto Place Tools GroupBox to Essential tab (LEFT side)
+local AutoPlaceToolsGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Place Tools 🔧")
+
+-- Variables for Auto Place Tools system
+local ToolsToPlace = {}
+local AutoPlaceToolsEnabled = false
+local autoPlaceToolsConnection = nil
+local lastToolPlaceTime = 0
+local placedTools = {} -- Track tools that have been placed
+
+-- Complete list of all placeable tools in the game
+local AllPlaceableTools = {
+    "Basic Sprinkler",
+    "Advanced Sprinkler", 
+    "Godly Sprinkler",
+    "Master Sprinkler",
+    "Chocolate Sprinkler",
+    "Honey Sprinkler",
+    "Tropical Mist Sprinkler",
+    "Berry Blusher Sprinkler",
+    "Spice Spritzer Sprinkler",
+    "Sweet Soaker Sprinkler",
+    "Flower Froster Sprinkler",
+    "Stalk Sprout Sprinkler",
+    "Lightning Rod",
+    "Tanning Mirror",
+    "Nectar Staff",
+    "Star Caller",
+    "Night Staff"
+}
+
+-- Tools to place dropdown
+AutoPlaceToolsGroupBox:AddDropdown("ToolsToPlace", {
+    Values = AllPlaceableTools,
+    Default = {},
+    Multi = true,
+    Text = "Tools Wanna Place",
+    Tooltip = "Select which tool types you want to automatically place on your farm",
+    Callback = function(Value)
+        ToolsToPlace = Value
+        print("[cb] Tools to place updated:", Value)
+        
+        -- Show selected tools in notification
+        local selectedNames = {}
+        for toolName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, toolName)
+            end
+        end
+        
+        if #selectedNames > 0 then
+            print("🔧 Will place:", table.concat(selectedNames, ", "))
+        else
+            print("🔧 No tools selected to place")
+        end
+    end,
+})
+
+-- Function to find tool in inventory
+local function findTool(toolName)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        return nil
+    end
+
+    -- Check if a tool is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                -- Remove quantity indicators like [X5] from name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item matches the tool name
+                if string.find(cleanName:lower(), toolName:lower()) then
+                    print("✅ Tool already equipped:", itemName)
+                    return equippedItem
+                end
+            end
+        end
+    end
+
+    -- Look for tool in backpack
+    local tool = nil
+    
+    -- First try exact match
+    tool = backpack:FindFirstChild(toolName)
+    if tool and tool:IsA("Tool") then
+        print("✅ Found exact tool match:", toolName)
+        return tool
+    end
+    
+    -- If no exact match, try partial matching
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name
+            -- Remove quantity indicators like [X5] from name
+            local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+            
+            -- Check if this item matches the tool name
+            if string.find(cleanName:lower(), toolName:lower()) then
+                tool = item
+                print("✅ Found tool partial match:", itemName)
+                break
+            end
+        end
+    end
+    
+    return tool
+end
+
+-- Function to equip a tool
+local function equipTool(toolName)
+    local tool = findTool(toolName)
+    
+    if tool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        -- Only equip if not already equipped
+        if tool.Parent == LocalPlayer.Backpack then
+            LocalPlayer.Character.Humanoid:EquipTool(tool)
+            task.wait(0.5) -- Wait for equip animation
+            print("🔧 Equipped tool:", tool.Name)
+            return LocalPlayer.Character:FindFirstChild(tool.Name)
+        else
+            -- Already equipped
+            return tool
+        end
+    end
+    
+    return nil
+end
+
+-- Function to place a tool on the farm
+local function placeTool(toolName)
+    -- Check if we have the tool in inventory and equip it
+    local equippedTool = equipTool(toolName)
+    if not equippedTool then
+        print("❌ Tool not found in inventory:", toolName)
+        return false
+    end
+
+    -- Get random position on farm
+    local placePosition = getRandomFarmPosition()
+    if not placePosition then
+        return false
+    end
+
+    -- Convert position to CFrame for placement
+    local placementCFrame = CFrame.new(placePosition.X, placePosition.Y, placePosition.Z)
+
+    -- Place the tool using the appropriate remote service
+    local success = pcall(function()
+        -- Determine which service to use based on tool type
+        if string.find(toolName:lower(), "sprinkler") then
+            -- Use SprinklerService for all sprinkler types
+            local SprinklerService = Services.ReplicatedStorage.GameEvents:FindFirstChild("SprinklerService")
+            if SprinklerService then
+                SprinklerService:FireServer("Create", placementCFrame)
+            else
+                error("SprinklerService not found")
+            end
+        elseif string.find(toolName:lower(), "lightning rod") then
+            -- Use LightningRodService
+            local LightningRodService = Services.ReplicatedStorage.GameEvents:FindFirstChild("LightningRodService")
+            if LightningRodService then
+                LightningRodService:FireServer("Create", placementCFrame)
+            else
+                error("LightningRodService not found")
+            end
+        elseif string.find(toolName:lower(), "tanning mirror") then
+            -- Use TanningMirrorService (assume similar pattern)
+            local TanningMirrorService = Services.ReplicatedStorage.GameEvents:FindFirstChild("TanningMirrorService")
+            if TanningMirrorService then
+                TanningMirrorService:FireServer("Create", placementCFrame)
+            else
+                error("TanningMirrorService not found")
+            end
+        elseif string.find(toolName:lower(), "nectar staff") then
+            -- Use NectarStaffService (assume similar pattern)
+            local NectarStaffService = Services.ReplicatedStorage.GameEvents:FindFirstChild("NectarStaffService")
+            if NectarStaffService then
+                NectarStaffService:FireServer("Create", placementCFrame)
+            else
+                error("NectarStaffService not found")
+            end
+        elseif string.find(toolName:lower(), "star caller") then
+            -- Use StarCallerService (assume similar pattern)
+            local StarCallerService = Services.ReplicatedStorage.GameEvents:FindFirstChild("StarCallerService")
+            if StarCallerService then
+                StarCallerService:FireServer("Create", placementCFrame)
+            else
+                error("StarCallerService not found")
+            end
+        elseif string.find(toolName:lower(), "night staff") then
+            -- Use NightStaffService (assume similar pattern)
+            local NightStaffService = Services.ReplicatedStorage.GameEvents:FindFirstChild("NightStaffService")
+            if NightStaffService then
+                NightStaffService:FireServer("Create", placementCFrame)
+            else
+                error("NightStaffService not found")
+            end
+        else
+            error("Unknown tool type: " .. toolName)
+        end
+    end)
+
+    if success then
+        print("🔧 Placed tool:", toolName, "at position:", placePosition)
+        Library:Notify("🔧 Placed " .. toolName .. " on farm!", 2)
+        return true
+    else
+        print("❌ Failed to place tool:", toolName)
+        return false
+    end
+end
+
+-- Main auto place tools function
+local function performAutoPlaceTools()
+    if not AutoPlaceToolsEnabled then 
+        return 
+    end
+    
+    -- Add delay between placements
+    local currentTime = tick()
+    if currentTime - lastToolPlaceTime < 3 then
+        return -- Not enough time has passed for next placement (3 seconds for tools)
+    end
+    
+    -- Check if we have tools selected
+    local hasToolsSelected = false
+    for _, selected in pairs(ToolsToPlace) do
+        if selected then hasToolsSelected = true break end
+    end
+    
+    if not hasToolsSelected then
+        return
+    end
+    
+    -- Find the next tool to place
+    local toolToPlace = nil
+    
+    for toolName, isSelected in pairs(ToolsToPlace) do
+        if isSelected then
+            local toolId = toolName .. "_" .. tostring(currentTime)
+            
+            -- Check if we have this tool in inventory
+            local tool = findTool(toolName)
+            if tool and not placedTools[toolId] then
+                toolToPlace = toolName
+                placedTools[toolId] = true
+                break
+            end
+        end
+    end
+    
+    -- If we found a tool to place, place it
+    if toolToPlace then
+        print("🔧 Placing tool:", toolToPlace)
+        
+        lastToolPlaceTime = currentTime -- Update last place time BEFORE placing
+        
+        if placeTool(toolToPlace) then
+            print("✅ Tool placed successfully - next tool in ~3 seconds...")
+        else
+            print("❌ Tool placement failed - will try next tool in ~3 seconds...")
+        end
+    else
+        -- No more tools to place or no tools in inventory
+        print("⏭️ No available tools to place in inventory")
+    end
+end
+
+-- Auto Place Tools toggle
+AutoPlaceToolsGroupBox:AddToggle("AutoPlaceTools", {
+    Text = "Auto Place Tools",
+    Tooltip = "Continuously place selected tool types on your farm when available in inventory",
+    Default = false,
+    Callback = function(Value)
+        AutoPlaceToolsEnabled = Value
+        print("[cb] Auto Place Tools toggled:", Value)
+        
+        if Value then
+            Library:Notify("🔧 Auto Place Tools enabled! Placing tools from inventory...", 3)
+            
+            -- Clear placed tools tracker for fresh start
+            placedTools = {}
+            lastToolPlaceTime = 0 -- Reset timing
+            
+            -- Start auto place tools loop
+            autoPlaceToolsConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoPlaceTools()
+            end)
+        else
+            Library:Notify("🔧 Auto Place Tools disabled!", 3)
+            
+            -- Stop auto place tools loop
+            if autoPlaceToolsConnection then
+                autoPlaceToolsConnection:Disconnect()
+                autoPlaceToolsConnection = nil
+            end
+            
+            -- Clear trackers
+            placedTools = {}
+            lastToolPlaceTime = 0
+        end
+    end,
+})
+
+-- ================================================================
 -- AUTO PLACE EGG SYSTEM
 -- ================================================================
 
