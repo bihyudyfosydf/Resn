@@ -1008,7 +1008,301 @@ local function plantMango()
     end
 end
 
--- Main auto quest function for both "Plant 100 Carrots" and "Plant 1 Mango"
+-- Function to find and equip watermelon seeds
+local function findAndEquipWatermelonSeed()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        print("❌ No backpack found")
+        return false 
+    end
+
+    -- Check if watermelon seed is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item is a watermelon seed
+                if string.find(cleanName:lower(), "watermelon") and string.find(cleanName:lower(), "seed") then
+                    print("✅ Watermelon seed already equipped:", itemName)
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Look for watermelon seeds in backpack
+    local watermelonSeedTool = nil
+    local possibleNames = {
+        "WatermelonSeed",
+        "Watermelon Seed", 
+        "Watermelon",
+    }
+
+    -- First try exact matches
+    for _, possibleName in ipairs(possibleNames) do
+        watermelonSeedTool = backpack:FindFirstChild(possibleName)
+        if watermelonSeedTool then
+            print("✅ Found exact watermelon seed match:", possibleName)
+            break
+        end
+    end
+
+    -- If no exact match, try partial matching
+    if not watermelonSeedTool then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local itemName = item.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if this item is a watermelon seed
+                if string.find(cleanName:lower(), "watermelon") and string.find(cleanName:lower(), "seed") then
+                    watermelonSeedTool = item
+                    print("✅ Found watermelon seed partial match:", itemName)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Equip the watermelon seed tool
+    if watermelonSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        print("🔧 Equipping watermelon seed:", watermelonSeedTool.Name)
+        LocalPlayer.Character.Humanoid:EquipTool(watermelonSeedTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ No watermelon seeds found in backpack")
+        return false
+    end
+end
+
+-- Function to find and equip pumpkin seeds
+local function findAndEquipPumpkinSeed()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        print("❌ No backpack found")
+        return false 
+    end
+
+    -- Check if pumpkin seed is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item is a pumpkin seed
+                if string.find(cleanName:lower(), "pumpkin") and string.find(cleanName:lower(), "seed") then
+                    print("✅ Pumpkin seed already equipped:", itemName)
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Look for pumpkin seeds in backpack
+    local pumpkinSeedTool = nil
+    local possibleNames = {
+        "PumpkinSeed",
+        "Pumpkin Seed", 
+        "Pumpkin",
+    }
+
+    -- First try exact matches
+    for _, possibleName in ipairs(possibleNames) do
+        pumpkinSeedTool = backpack:FindFirstChild(possibleName)
+        if pumpkinSeedTool then
+            print("✅ Found exact pumpkin seed match:", possibleName)
+            break
+        end
+    end
+
+    -- If no exact match, try partial matching
+    if not pumpkinSeedTool then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local itemName = item.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if this item is a pumpkin seed
+                if string.find(cleanName:lower(), "pumpkin") and string.find(cleanName:lower(), "seed") then
+                    pumpkinSeedTool = item
+                    print("✅ Found pumpkin seed partial match:", itemName)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Equip the pumpkin seed tool
+    if pumpkinSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        print("🔧 Equipping pumpkin seed:", pumpkinSeedTool.Name)
+        LocalPlayer.Character.Humanoid:EquipTool(pumpkinSeedTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ No pumpkin seeds found in backpack")
+        return false
+    end
+end
+
+-- Function to find and equip bamboo seeds
+local function findAndEquipBambooSeed()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        print("❌ No backpack found")
+        return false 
+    end
+
+    -- Check if bamboo seed is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item is a bamboo seed
+                if string.find(cleanName:lower(), "bamboo") and string.find(cleanName:lower(), "seed") then
+                    print("✅ Bamboo seed already equipped:", itemName)
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Look for bamboo seeds in backpack
+    local bambooSeedTool = nil
+    local possibleNames = {
+        "BambooSeed",
+        "Bamboo Seed", 
+        "Bamboo",
+    }
+
+    -- First try exact matches
+    for _, possibleName in ipairs(possibleNames) do
+        bambooSeedTool = backpack:FindFirstChild(possibleName)
+        if bambooSeedTool then
+            print("✅ Found exact bamboo seed match:", possibleName)
+            break
+        end
+    end
+
+    -- If no exact match, try partial matching
+    if not bambooSeedTool then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local itemName = item.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if this item is a bamboo seed
+                if string.find(cleanName:lower(), "bamboo") and string.find(cleanName:lower(), "seed") then
+                    bambooSeedTool = item
+                    print("✅ Found bamboo seed partial match:", itemName)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Equip the bamboo seed tool
+    if bambooSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        print("🔧 Equipping bamboo seed:", bambooSeedTool.Name)
+        LocalPlayer.Character.Humanoid:EquipTool(bambooSeedTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ No bamboo seeds found in backpack")
+        return false
+    end
+end
+
+-- Function to plant watermelon at random position
+local function plantWatermelon()
+    local plantPosition = getRandomPlantPosition()
+    if plantPosition then
+        local Plant_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("Plant_RE")
+        
+        if Plant_RE then
+            local success = pcall(function()
+                Plant_RE:FireServer(plantPosition, "Watermelon")
+            end)
+            
+            if success then
+                print("✅ Successfully planted watermelon at position:", plantPosition)
+                return true
+            else
+                print("❌ Failed to plant watermelon")
+                return false
+            end
+        else
+            print("❌ Plant_RE remote event not found")
+            return false
+        end
+    else
+        print("❌ No planting position available")
+        return false
+    end
+end
+
+-- Function to plant pumpkin at random position
+local function plantPumpkin()
+    local plantPosition = getRandomPlantPosition()
+    if plantPosition then
+        local Plant_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("Plant_RE")
+        
+        if Plant_RE then
+            local success = pcall(function()
+                Plant_RE:FireServer(plantPosition, "Pumpkin")
+            end)
+            
+            if success then
+                print("✅ Successfully planted pumpkin at position:", plantPosition)
+                return true
+            else
+                print("❌ Failed to plant pumpkin")
+                return false
+            end
+        else
+            print("❌ Plant_RE remote event not found")
+            return false
+        end
+    else
+        print("❌ No planting position available")
+        return false
+    end
+end
+
+-- Function to plant bamboo at random position
+local function plantBamboo()
+    local plantPosition = getRandomPlantPosition()
+    if plantPosition then
+        local Plant_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("Plant_RE")
+        
+        if Plant_RE then
+            local success = pcall(function()
+                Plant_RE:FireServer(plantPosition, "Bamboo")
+            end)
+            
+            if success then
+                print("✅ Successfully planted bamboo at position:", plantPosition)
+                return true
+            else
+                print("❌ Failed to plant bamboo")
+                return false
+            end
+        else
+            print("❌ Plant_RE remote event not found")
+            return false
+        end
+    else
+        print("❌ No planting position available")
+        return false
+    end
+end
+
+-- Main auto quest function for all plant quests
 local function performAutoQuest()
     if not AutoQuestEnabled then return end
     
@@ -1019,7 +1313,9 @@ local function performAutoQuest()
     end
     lastQuestCheck = currentTime
     
-    -- Look for "Plant 100 Carrots" quest first
+    -- Priority order: Carrot (100) > Bamboo (25) > Watermelon (10) > Pumpkin (5) > Mango (1)
+    
+    -- Look for "Plant 100 Carrots" quest first (highest quantity)
     local carrotQuest = getQuestByName("plant.*carrot")
     
     if carrotQuest then
@@ -1029,28 +1325,101 @@ local function performAutoQuest()
         print("🥕 Found carrot planting quest:", displayData.Title)
         print("🥕 Progress:", quest.Progress or 0, "/", quest.Target or 100)
         
-        -- Check if quest is already completed
-        if quest.Completed then
-            print("✅ Carrot quest already completed!")
-        else
-            -- Try to equip carrot seeds and plant
+        if not quest.Completed then
             if findAndEquipCarrotSeed() then
                 if plantCarrot() then
                     local progress = quest.Progress or 0
                     local target = quest.Target or 100
                     Library:Notify("🥕 Planted carrot! Progress: " .. (progress + 1) .. "/" .. target, 2)
-                else
-                    print("❌ Failed to plant carrot")
                 end
             else
-                print("❌ Could not find or equip carrot seeds")
                 Library:Notify("❌ Need carrot seeds in inventory!", 3)
             end
+        else
+            print("✅ Carrot quest already completed!")
         end
-        return -- Found carrot quest, so we're done
+        return
     end
     
-    -- Look for "Plant 1 Mango" quest if no carrot quest
+    -- Look for "Plant 25 Bamboo" quest
+    local bambooQuest = getQuestByName("plant.*bamboo")
+    
+    if bambooQuest then
+        local quest = bambooQuest.quest
+        local displayData = bambooQuest.displayData
+        
+        print("🎋 Found bamboo planting quest:", displayData.Title)
+        print("🎋 Progress:", quest.Progress or 0, "/", quest.Target or 25)
+        
+        if not quest.Completed then
+            if findAndEquipBambooSeed() then
+                if plantBamboo() then
+                    local progress = quest.Progress or 0
+                    local target = quest.Target or 25
+                    Library:Notify("🎋 Planted bamboo! Progress: " .. (progress + 1) .. "/" .. target, 2)
+                end
+            else
+                Library:Notify("❌ Need bamboo seeds in inventory!", 3)
+            end
+        else
+            print("✅ Bamboo quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Plant 10 Watermelons" quest
+    local watermelonQuest = getQuestByName("plant.*watermelon")
+    
+    if watermelonQuest then
+        local quest = watermelonQuest.quest
+        local displayData = watermelonQuest.displayData
+        
+        print("🍉 Found watermelon planting quest:", displayData.Title)
+        print("🍉 Progress:", quest.Progress or 0, "/", quest.Target or 10)
+        
+        if not quest.Completed then
+            if findAndEquipWatermelonSeed() then
+                if plantWatermelon() then
+                    local progress = quest.Progress or 0
+                    local target = quest.Target or 10
+                    Library:Notify("🍉 Planted watermelon! Progress: " .. (progress + 1) .. "/" .. target, 2)
+                end
+            else
+                Library:Notify("❌ Need watermelon seeds in inventory!", 3)
+            end
+        else
+            print("✅ Watermelon quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Plant 5 Pumpkins" quest
+    local pumpkinQuest = getQuestByName("plant.*pumpkin")
+    
+    if pumpkinQuest then
+        local quest = pumpkinQuest.quest
+        local displayData = pumpkinQuest.displayData
+        
+        print("🎃 Found pumpkin planting quest:", displayData.Title)
+        print("🎃 Progress:", quest.Progress or 0, "/", quest.Target or 5)
+        
+        if not quest.Completed then
+            if findAndEquipPumpkinSeed() then
+                if plantPumpkin() then
+                    local progress = quest.Progress or 0
+                    local target = quest.Target or 5
+                    Library:Notify("🎃 Planted pumpkin! Progress: " .. (progress + 1) .. "/" .. target, 2)
+                end
+            else
+                Library:Notify("❌ Need pumpkin seeds in inventory!", 3)
+            end
+        else
+            print("✅ Pumpkin quest already completed!")
+        end
+        return
+    end
+    
+    -- Look for "Plant 1 Mango" quest (lowest priority)
     local mangoQuest = getQuestByName("plant.*mango")
     
     if mangoQuest then
@@ -1060,35 +1429,28 @@ local function performAutoQuest()
         print("🥭 Found mango planting quest:", displayData.Title)
         print("🥭 Progress:", quest.Progress or 0, "/", quest.Target or 1)
         
-        -- Check if quest is already completed
-        if quest.Completed then
-            print("✅ Mango quest already completed!")
-        else
-            -- Try to equip mango seeds and plant
+        if not quest.Completed then
             if findAndEquipMangoSeed() then
                 if plantMango() then
                     local progress = quest.Progress or 0
                     local target = quest.Target or 1
                     Library:Notify("🥭 Planted mango! Progress: " .. (progress + 1) .. "/" .. target, 2)
                     
-                    -- Show completion message since mango only needs 1
                     if (progress + 1) >= target then
                         Library:Notify("🎉 Mango quest should be complete!", 3)
                     end
-                else
-                    print("❌ Failed to plant mango")
                 end
             else
-                print("❌ Could not find or equip mango seeds")
                 Library:Notify("❌ Need mango seeds in inventory!", 3)
             end
+        else
+            print("✅ Mango quest already completed!")
         end
-        return -- Found mango quest, so we're done
+        return
     end
     
     -- No relevant quests found
-    print("⏳ No plant quests found - waiting for 'Plant Carrots' or 'Plant Mango' quest...")
-    -- Only show notification every 30 seconds to avoid spam
+    print("⏳ No plant quests found - waiting for prehistoric plant quests...")
     if currentTime % 30 < 2 then
         Library:Notify("⏳ Waiting for plant quests...", 2)
     end
@@ -1096,23 +1458,23 @@ end
 
 -- Auto Quest toggle
 AutoQuestGroupBox:AddToggle("AutoQuest", {
-    Text = "Auto Plant Quests (Carrots & Mango)",
-    Tooltip = "Automatically completes 'Plant 100 Carrots' and 'Plant 1 Mango' prehistoric quests when available",
+    Text = "Auto Plant Quests (All 5 Types)",
+    Tooltip = "Automatically completes all prehistoric plant quests: Carrots (100), Bamboo (25), Watermelons (10), Pumpkins (5), Mango (1)",
     Default = false,
     Callback = function(Value)
         AutoQuestEnabled = Value
         print("[cb] Auto Quest toggled:", Value)
         
         if Value then
-            Library:Notify("🥕🥭 Auto Plant Quests enabled!", 3)
-            print("🥕🥭 Auto Quest started - looking for plant quests...")
+            Library:Notify("🥕🎋🍉🎃🥭 Auto Plant Quests enabled!", 3)
+            print("🥕🎋🍉🎃🥭 Auto Quest started - looking for all plant quests...")
             
             -- Start auto quest loop
             autoQuestConnection = Services.RunService.Heartbeat:Connect(function()
                 performAutoQuest()
             end)
         else
-            Library:Notify("🥕🥭 Auto Plant Quests disabled!", 3)
+            Library:Notify("🥕🎋🍉🎃🥭 Auto Plant Quests disabled!", 3)
             
             -- Stop auto quest loop
             if autoQuestConnection then
