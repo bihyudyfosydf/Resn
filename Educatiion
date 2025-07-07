@@ -1075,23 +1075,6 @@ local function initializeCrafterTab()
         end
     })
 
-    -- Manual Dino Machine Reward Claim button
-    DinoCrafterGroupBox:AddButton("🎁 Claim Dino Machine Reward", function()
-        local success, err = pcall(function()
-            print("🎁 Claiming dino machine reward...")
-            local DinoMachineService_RE = game:GetService("ReplicatedStorage").GameEvents.DinoMachineService_RE
-            DinoMachineService_RE:FireServer("ClaimReward")
-        end)
-        
-        if success then
-            print("✅ Successfully claimed dino machine reward!")
-            Library:Notify("🎁 Claimed dino machine reward!", 3)
-        else
-            print("❌ Failed to claim dino machine reward:", err)
-            Library:Notify("❌ Failed to claim dino reward", 3)
-        end
-    end)
-
     DinoCrafterGroupBox:AddDivider()
 
     -- ================================================================
