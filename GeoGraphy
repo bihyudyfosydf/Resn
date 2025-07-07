@@ -46,158 +46,364 @@ local LocalPlayer = Services.Players.LocalPlayer
 -- ================================================================
 -- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
+local AutoMoveGroupBox = Tabs.Essential:AddRightGroupbox("Auto Move 🚀")
 
 -- ================================================================
--- AUTO TELEPORT SYSTEM
+-- PLANT MOVE SYSTEM
 -- ================================================================
 
--- Variables for Auto Teleport
-local AutoTeleportEnabled = false
-local SelectedLocation = "Farm"
-local autoTeleportConnection = nil
+-- Variables for Plant Move System
+local PlantsToMove = {}
+local PlantsToMoveTo = {}
+local PlantMoveEnabled = false
 
--- Available teleport locations
-local TeleportLocations = {
-    "Farm",
-    "Shop",
-    "Spawn",
-    "Beach",
-    "Mountain",
-    "Forest"
+-- Complete list of all plants and fruits in the game
+local AllPlantsAndFruits = {
+    "Aloe Vera", "Apple", "Avocado", "Bamboo", "Banana", "Beanstalk", "Bee Balm", "Bell Pepper",
+    "Bendboo", "Blood Banana", "Blue Lollipop", "Blueberry", "Bone Blossom", "Boneboo", "Burning Bud", 
+    "Cacao", "Cactus", "Candy Blossom", "Candy Sunflower", "Cantaloupe", "Carrot", "Cauliflower", 
+    "Celestiberry", "Cherry Blossom", "Cherry OLD", "Chocolate Carrot", "Cocovine", "Coconut", "Corn", 
+    "Cranberry", "Crimson Vine", "Crocus", "Cursed Fruit", "Daffodil", "Dandelion", "Delphinium", 
+    "Dragon Fruit", "Dragon Pepper", "Durian", "Easter Egg", "Eggplant", "Elephant Ears", "Ember Lily", 
+    "Feijoa", "Firefly Fern", "Firework Flower", "Fossilight", "Foxglove", "Glowshroom", "Grape", 
+    "Green Apple", "Guanabana", "Hive Fruit", "Honeysuckle", "Horned Dinoshroom", "Ice Cream Bean", 
+    "Kiwi", "Lavender", "Lemon", "Liberty Lily", "Lilac", "Lily of the Valley", "Lime", "Loquat", 
+    "Lotus", "Lumira", "Mango", "Manuka Flower", "Mega Mushroom", "Merica Mushroom", "Mint", 
+    "Moon Blossom", "Moon Mango", "Moon Melon", "Moonflower", "Moonglow", "Mushroom", "Nectar Thorn", 
+    "Nectarine", "Nectarshade", "Nightshade", "Noble Flower", "Orange Tulip", "Papaya", "Paradise Petal", 
+    "Parasol Flower", "Passionfruit", "Peace Lily", "Peach", "Pear", "Pepper", "Pineapple", "Pink Lily", 
+    "Pink Tulip", "Pitcher Plant", "Prickly Pear", "Pumpkin", "Purple Cabbage", "Purple Dahlia", 
+    "Rafflesia", "Raspberry", "Red Lollipop", "Rose", "Rosy Delight", "Soul Fruit", "Starfruit", 
+    "Stonebite", "Strawberry", "Succulent", "Sugar Apple", "Suncoil", "Sunflower", "Tomato", 
+    "Traveler's Fruit", "Venus Fly Trap", "Violet Corn", "Watermelon", "White Mulberry", "Wild Carrot"
 }
 
--- Location dropdown
-AutoMoveGroupBox:AddDropdown("TeleportLocation", {
-    Values = TeleportLocations,
-    Default = 1,
-    Multi = false,
-    Text = "Select Location",
-    Tooltip = "Choose where to auto teleport",
+-- Plants to move FROM dropdown
+AutoMoveGroupBox:AddDropdown("PlantsToMove", {
+    Values = AllPlantsAndFruits,
+    Default = {},
+    Multi = true,
+    Text = "Plants Wanna Move",
+    Tooltip = "Select which plants you want to move",
     Callback = function(Value)
-        SelectedLocation = Value
-        print("[cb] Selected teleport location:", Value)
-        Library:Notify("📍 Location set: " .. Value, 2)
-    end,
-})
-
--- Auto Teleport toggle
-AutoMoveGroupBox:AddToggle("AutoTeleport", {
-    Text = "Auto Teleport",
-    Tooltip = "Automatically teleport to selected location",
-    Default = false,
-    Callback = function(Value)
-        AutoTeleportEnabled = Value
-        print("[cb] Auto Teleport toggled:", Value)
+        PlantsToMove = Value
+        print("[cb] Plants to move updated:", Value)
         
-        if Value then
-            Library:Notify("🚀 Auto Teleport enabled!", 3)
-            
-            -- Start teleport loop (placeholder)
-            autoTeleportConnection = Services.RunService.Heartbeat:Connect(function()
-                -- Placeholder teleport logic
-                -- This would implement actual teleportation
-            end)
-        else
-            Library:Notify("🚀 Auto Teleport disabled!", 3)
-            
-            -- Stop teleport loop
-            if autoTeleportConnection then
-                autoTeleportConnection:Disconnect()
-                autoTeleportConnection = nil
+        -- Show selected plants in notification
+        local selectedNames = {}
+        for plantName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, plantName)
             end
         end
-    end,
-})
-
--- ================================================================
--- AUTO WALK SYSTEM
--- ================================================================
-
--- Variables for Auto Walk
-local AutoWalkEnabled = false
-local WalkSpeed = 16
-local autoWalkConnection = nil
-
--- Walk speed slider
-AutoMoveGroupBox:AddSlider("WalkSpeed", {
-    Text = "Walk Speed",
-    Tooltip = "Set auto walk speed",
-    Default = 16,
-    Min = 1,
-    Max = 100,
-    Rounding = 1,
-    Compact = false,
-    Callback = function(Value)
-        WalkSpeed = Value
-        print("[cb] Walk speed set to:", Value)
         
-        -- Apply speed to character if auto walk is enabled
-        if AutoWalkEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        if #selectedNames > 0 then
+            Library:Notify("🌱 Moving: " .. table.concat(selectedNames, ", "), 3)
+        else
+            Library:Notify("🌱 No plants selected to move", 2)
         end
     end,
 })
 
--- Auto Walk toggle
-AutoMoveGroupBox:AddToggle("AutoWalk", {
-    Text = "Auto Walk",
-    Tooltip = "Enable auto walking with custom speed",
-    Default = false,
+-- Plants to move TO dropdown
+AutoMoveGroupBox:AddDropdown("PlantsToMoveTo", {
+    Values = AllPlantsAndFruits,
+    Default = {},
+    Multi = true,
+    Text = "Plants Wanna Move To",
+    Tooltip = "Select where you want to move the plants to",
     Callback = function(Value)
-        AutoWalkEnabled = Value
-        print("[cb] Auto Walk toggled:", Value)
+        PlantsToMoveTo = Value
+        print("[cb] Plants to move to updated:", Value)
         
-        if Value then
-            Library:Notify("🚶 Auto Walk enabled!", 3)
+        -- Show selected target plants in notification
+        local selectedNames = {}
+        for plantName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, plantName)
+            end
+        end
+        
+        if #selectedNames > 0 then
+            Library:Notify("🎯 Moving to: " .. table.concat(selectedNames, ", "), 3)
+        else
+            Library:Notify("🎯 No target plants selected", 2)
+        end
+    end,
+})
+
+-- ================================================================
+-- PLANT MOVE IMPLEMENTATION
+-- ================================================================
+
+-- Additional variables for plant moving
+local plantMoveConnection = nil
+local isMovingPlant = false
+
+-- Function to get player's farm
+local function getMyFarm()
+    for _, farm in Services.Workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data:FindFirstChild("Owner") and data.Owner.Value == LocalPlayer.Name then
+                return farm
+            end
+        end
+    end
+    return nil
+end
+
+-- Function to find and equip trowel tool
+local function findAndEquipTrowel()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        return nil
+    end
+
+    -- Check if trowel is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") and string.find(equippedItem.Name, "Trowel") then
+                return equippedItem
+            end
+        end
+    end
+
+    -- Look for trowel in backpack
+    local trowelTool = nil
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") and string.find(item.Name, "Trowel") then
+            trowelTool = item
+            break
+        end
+    end
+
+    -- Equip the trowel tool
+    if trowelTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid:EquipTool(trowelTool)
+        task.wait(0.5)
+        return LocalPlayer.Character:FindFirstChild(trowelTool.Name)
+    end
+    
+    return nil
+end
+
+-- Function to find plants by name pattern
+local function findPlantsByName(plantName)
+    local myFarm = getMyFarm()
+    if not myFarm then
+        return {}
+    end
+
+    local important = myFarm:FindFirstChild("Important")
+    if not important then
+        return {}
+    end
+
+    local plantsPhysical = important:FindFirstChild("Plants_Physical")
+    if not plantsPhysical then
+        return {}
+    end
+
+    local foundPlants = {}
+    for _, plant in pairs(plantsPhysical:GetChildren()) do
+        if string.find(plant.Name:lower(), plantName:lower()) then
+            table.insert(foundPlants, plant)
+        end
+    end
+    
+    return foundPlants
+end
+
+-- Function to find Can_Plant areas near target plants
+local function findCanPlantNearTarget(targetPlantName)
+    local myFarm = getMyFarm()
+    if not myFarm then
+        return nil
+    end
+
+    local important = myFarm:FindFirstChild("Important")
+    if not important then
+        return nil
+    end
+
+    -- Find target plants first
+    local targetPlants = findPlantsByName(targetPlantName)
+    if #targetPlants == 0 then
+        return nil
+    end
+
+    -- Get the first target plant's position
+    local targetPlant = targetPlants[1]
+    local targetPosition = targetPlant:GetPivot().Position
+
+    -- Find Plant_Locations with Can_Plant parts
+    local plantLocations = important:FindFirstChild("Plant_Locations")
+    if not plantLocations then
+        return nil
+    end
+
+    -- Find the closest Can_Plant part to the target
+    local closestCanPlant = nil
+    local closestDistance = math.huge
+
+    for _, location in pairs(plantLocations:GetChildren()) do
+        if location.Name == "Can_Plant" and location:IsA("BasePart") then
+            local distance = (location.Position - targetPosition).Magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestCanPlant = location
+            end
+        end
+    end
+
+    return closestCanPlant
+end
+
+-- Function to move a single plant
+local function movePlant(plantToMove, targetPlantName)
+    if isMovingPlant then
+        return false
+    end
+    
+    isMovingPlant = true
+    
+    local success = pcall(function()
+        -- Find and equip trowel
+        local trowelTool = findAndEquipTrowel()
+        if not trowelTool then
+            Library:Notify("❌ Need a Trowel tool in inventory!", 3)
+            return
+        end
+
+        -- Find Can_Plant location near target
+        local canPlantLocation = findCanPlantNearTarget(targetPlantName)
+        if not canPlantLocation then
+            Library:Notify("❌ No placement area found near " .. targetPlantName, 3)
+            return
+        end
+
+        -- Get the TrowelRemote
+        local TrowelRemote = Services.ReplicatedStorage.GameEvents:FindFirstChild("TrowelRemote")
+        if not TrowelRemote then
+            Library:Notify("❌ TrowelRemote not found!", 3)
+            return
+        end
+
+        -- Step 1: Pickup the plant
+        print("🔧 Picking up plant:", plantToMove.Name)
+        local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
+        
+        if pickupSuccess then
+            task.wait(0.5) -- Wait for pickup to process
             
-            -- Start walk monitoring
-            autoWalkConnection = Services.RunService.Heartbeat:Connect(function()
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeed
+            -- Step 2: Place the plant near target
+            local placementCFrame = CFrame.new(canPlantLocation.Position) * CFrame.new(
+                math.random(-5, 5), -- Random X offset
+                0,
+                math.random(-5, 5)  -- Random Z offset
+            )
+            
+            print("🔧 Placing plant at:", placementCFrame.Position)
+            local placeSuccess = TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
+            
+            if placeSuccess then
+                Library:Notify("✅ Moved " .. plantToMove.Name .. " near " .. targetPlantName, 2)
+            else
+                Library:Notify("❌ Failed to place " .. plantToMove.Name, 3)
+            end
+        else
+            Library:Notify("❌ Failed to pickup " .. plantToMove.Name, 3)
+        end
+    end)
+    
+    if not success then
+        Library:Notify("❌ Error moving plant", 3)
+    end
+    
+    isMovingPlant = false
+    return success
+end
+
+-- Main plant moving function
+local function performPlantMove()
+    if not PlantMoveEnabled or isMovingPlant then 
+        return 
+    end
+    
+    -- Check if we have plants to move and targets
+    local hasToMove = false
+    local hasTargets = false
+    
+    for _, selected in pairs(PlantsToMove) do
+        if selected then hasToMove = true break end
+    end
+    
+    for _, selected in pairs(PlantsToMoveTo) do
+        if selected then hasTargets = true break end
+    end
+    
+    if not hasToMove or not hasTargets then
+        return
+    end
+    
+    -- Move each selected plant type to each target location
+    for plantName, isSelected in pairs(PlantsToMove) do
+        if isSelected then
+            local plantsToMove = findPlantsByName(plantName)
+            
+            if #plantsToMove > 0 then
+                -- Find a target plant name
+                local targetPlantName = nil
+                for targetName, isTargetSelected in pairs(PlantsToMoveTo) do
+                    if isTargetSelected then
+                        targetPlantName = targetName
+                        break
+                    end
                 end
+                
+                if targetPlantName then
+                    -- Move the first plant of this type
+                    local plantToMove = plantsToMove[1]
+                    print("🌱 Moving", plantToMove.Name, "near", targetPlantName)
+                    
+                    if movePlant(plantToMove, targetPlantName) then
+                        task.wait(3) -- Delay between moves to prevent spam
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Plant Move toggle
+AutoMoveGroupBox:AddToggle("PlantMove", {
+    Text = "Start Plant Move",
+    Tooltip = "Start moving selected plants to target locations using trowel",
+    Default = false,
+    Callback = function(Value)
+        PlantMoveEnabled = Value
+        print("[cb] Plant Move toggled:", Value)
+        
+        if Value then
+            Library:Notify("🌱 Plant Move enabled!", 3)
+            
+            -- Start plant move loop
+            plantMoveConnection = Services.RunService.Heartbeat:Connect(function()
+                performPlantMove()
             end)
         else
-            Library:Notify("🚶 Auto Walk disabled!", 3)
+            Library:Notify("🌱 Plant Move disabled!", 3)
             
-            -- Stop walk monitoring and reset speed
-            if autoWalkConnection then
-                autoWalkConnection:Disconnect()
-                autoWalkConnection = nil
-            end
-            
-            -- Reset to default speed
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid.WalkSpeed = 16
+            -- Stop plant move loop
+            if plantMoveConnection then
+                plantMoveConnection:Disconnect()
+                plantMoveConnection = nil
             end
         end
     end,
 })
-
--- ================================================================
--- QUICK ACTIONS
--- ================================================================
-
-AutoMoveGroupBox:AddDivider()
-AutoMoveGroupBox:AddLabel("Quick Actions:")
-
--- Go to Farm button
-AutoMoveGroupBox:AddButton("Go to Farm", function()
-    Library:Notify("🚜 Going to farm... (placeholder)", 2)
-    print("🚜 Teleporting to farm (placeholder function)")
-end)
-
--- Go to Shop button
-AutoMoveGroupBox:AddButton("Go to Shop", function()
-    Library:Notify("🛒 Going to shop... (placeholder)", 2)
-    print("🛒 Teleporting to shop (placeholder function)")
-end)
-
--- Reset Position button
-AutoMoveGroupBox:AddButton("Reset Position", function()
-    Library:Notify("🔄 Resetting position... (placeholder)", 2)
-    print("🔄 Resetting player position (placeholder function)")
-end)
 
 -- ================================================================
 -- AUTO MOVE INITIALIZATION COMPLETE
