@@ -56,6 +56,7 @@ local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 local PlantsToMove = {}
 local PlantsToMoveTo = {}
 local PlantMoveEnabled = false
+local MinMoveDistance = 20 -- Only move plants farther than this distance from target
 
 -- Complete list of all plants and fruits in the game
 local AllPlantsAndFruits = {
@@ -129,6 +130,22 @@ AutoMoveGroupBox:AddDropdown("PlantsToMoveTo", {
         else
             print("🎯 No target plants selected")
         end
+    end,
+})
+
+-- Distance threshold slider
+AutoMoveGroupBox:AddSlider("MinMoveDistance", {
+    Text = "Min Distance to Move",
+    Tooltip = "Only move plants that are farther than this distance from target (blocks)",
+    Default = 20,
+    Min = 5,
+    Max = 50,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        MinMoveDistance = Value
+        print("[cb] Min move distance set to:", Value, "blocks")
+        Library:Notify("📏 Will only move plants " .. Value .. "+ blocks away from target", 2)
     end,
 })
 
@@ -364,17 +381,36 @@ local function performPlantMove()
     local plantToMove = nil
     local plantTypeName = nil
     
+    -- Get target position once for distance checks
+    local targetPosition = getTargetPlantPosition(targetPlantName)
+    if not targetPosition then
+        print("❌ Target plant not found:", targetPlantName)
+        return
+    end
+    
     for plantName, isSelected in pairs(PlantsToMove) do
         if isSelected then
             local plantsOfThisType = findPlantsByName(plantName)
             
-            -- Look for an unmoved plant of this type
+            -- Look for an unmoved plant of this type that is FAR from target
             for _, plant in pairs(plantsOfThisType) do
                 local plantId = tostring(plant)
                 if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
-                    plantToMove = plant
-                    plantTypeName = plantName
-                    break
+                    -- Check if plant is already close to target
+                    local plantPosition = plant:GetPivot().Position
+                    local distanceToTarget = (plantPosition - targetPosition).Magnitude
+                    
+                    -- Only move plants that are far away (more than MinMoveDistance blocks from target)
+                    if distanceToTarget > MinMoveDistance then
+                        plantToMove = plant
+                        plantTypeName = plantName
+                        print("🔍 Found", plantName, "that's", math.floor(distanceToTarget), "blocks away from target (min:", MinMoveDistance .. ")")
+                        break
+                    else
+                        print("⏭️ Skipping", plantName, "- already close to target (", math.floor(distanceToTarget), "blocks, min:", MinMoveDistance .. ")")
+                        -- Mark as moved so we don't check it again
+                        movedPlants[plantId] = true
+                    end
                 end
             end
             
