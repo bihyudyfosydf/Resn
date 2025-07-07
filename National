@@ -715,6 +715,279 @@ DinoGroupBox:AddToggle("DinoAutoEquip", {
 })
 
 -- ================================================================
+-- AUTO QUEST SYSTEM
+-- ================================================================
+local AutoQuestGroupBox = EventTab:AddLeftGroupbox("Auto Quest 🚀")
+
+-- Variables for Auto Quest system
+local AutoQuestEnabled = false
+local autoQuestConnection = nil
+local lastQuestCheck = 0
+
+-- Function to get specific quest by name pattern
+local function getQuestByName(questNamePattern)
+    local success, result = pcall(function()
+        local DataService = require(Services.ReplicatedStorage.Modules.DataService)
+        local QuestsController = require(Services.ReplicatedStorage.Modules.QuestsController)
+        
+        local data = DataService:GetData()
+        if not data or not data.DinoQuests or not data.DinoQuests.Containers then
+            return nil
+        end
+        
+        -- Search through all quest containers
+        for i, containerId in pairs(data.DinoQuests.Containers) do
+            local container = QuestsController:GetContainerFromId(containerId)
+            if container and container.Quests then
+                -- Search through quests in this container
+                for j, quest in pairs(container.Quests) do
+                    local questInfo = QuestsController:GetQuest(quest.Type)
+                    if questInfo then
+                        local displayData = questInfo:Display(quest.Progress, quest.Target, quest.Arguments)
+                        local questTitle = displayData.Title or ""
+                        
+                        -- Check if this quest matches our pattern
+                        if string.find(questTitle:lower(), questNamePattern:lower()) then
+                            return {
+                                quest = quest,
+                                container = container,
+                                displayData = displayData,
+                                containerId = containerId,
+                                questIndex = j
+                            }
+                        end
+                    end
+                end
+            end
+        end
+        
+        return nil
+    end)
+    
+    if success then
+        return result
+    else
+        print("❌ Error getting quest by name:", result)
+        return nil
+    end
+end
+
+-- Function to find and equip carrot seeds (based on REFACRORMAIN logic)
+local function findAndEquipCarrotSeed()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        print("❌ No backpack found")
+        return false 
+    end
+
+    -- Check if carrot seed is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item is a carrot seed
+                if string.find(cleanName:lower(), "carrot") and string.find(cleanName:lower(), "seed") then
+                    print("✅ Carrot seed already equipped:", itemName)
+                    return true
+                end
+            end
+        end
+    end
+
+    -- Look for carrot seeds in backpack
+    local carrotSeedTool = nil
+    local possibleNames = {
+        "CarrotSeed",
+        "Carrot Seed", 
+        "Carrot",
+    }
+
+    -- First try exact matches
+    for _, possibleName in ipairs(possibleNames) do
+        carrotSeedTool = backpack:FindFirstChild(possibleName)
+        if carrotSeedTool then
+            print("✅ Found exact carrot seed match:", possibleName)
+            break
+        end
+    end
+
+    -- If no exact match, try partial matching
+    if not carrotSeedTool then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local itemName = item.Name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if this item is a carrot seed
+                if string.find(cleanName:lower(), "carrot") and string.find(cleanName:lower(), "seed") then
+                    carrotSeedTool = item
+                    print("✅ Found carrot seed partial match:", itemName)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Equip the carrot seed tool
+    if carrotSeedTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        print("🔧 Equipping carrot seed:", carrotSeedTool.Name)
+        LocalPlayer.Character.Humanoid:EquipTool(carrotSeedTool)
+        task.wait(0.5)
+        return true
+    else
+        print("❌ No carrot seeds found in backpack")
+        return false
+    end
+end
+
+-- Function to get random plant position (from REFACRORMAIN)
+local function getRandomPlantPosition()
+    -- Get player's farm
+    local myFarm = nil
+    for _, farm in workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data.Owner.Value == LocalPlayer.Name then
+                myFarm = farm
+                break
+            end
+        end
+    end
+    
+    if myFarm then
+        local canPlantParts = {}
+        -- Find all Can_Plant parts in the farm
+        for _, child in pairs(myFarm:GetDescendants()) do
+            if child.Name == "Can_Plant" and child:IsA("BasePart") then
+                table.insert(canPlantParts, child)
+            end
+        end
+
+        if #canPlantParts > 0 then
+            local selectedPart = canPlantParts[math.random(1, #canPlantParts)]
+            
+            -- Get random position on the selected part
+            local size = selectedPart.Size
+            local position = selectedPart.Position
+            local randomX = position.X + math.random(-size.X / 2, size.X / 2)
+            local randomZ = position.Z + math.random(-size.Z / 2, size.Z / 2)
+            return Vector3.new(randomX, position.Y, randomZ)
+        end
+    end
+    return nil
+end
+
+-- Function to plant carrot at random position
+local function plantCarrot()
+    local plantPosition = getRandomPlantPosition()
+    if plantPosition then
+        -- Get the Plant_RE remote event
+        local Plant_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("Plant_RE")
+        
+        if Plant_RE then
+            local success = pcall(function()
+                Plant_RE:FireServer(plantPosition, "Carrot")
+            end)
+            
+            if success then
+                print("✅ Successfully planted carrot at position:", plantPosition)
+                return true
+            else
+                print("❌ Failed to plant carrot")
+                return false
+            end
+        else
+            print("❌ Plant_RE remote event not found")
+            return false
+        end
+    else
+        print("❌ No planting position available")
+        return false
+    end
+end
+
+-- Main auto quest function for "Plant 100 Carrots"
+local function performAutoQuest()
+    if not AutoQuestEnabled then return end
+    
+    -- Don't check too frequently (every 2 seconds)
+    local currentTime = tick()
+    if currentTime - lastQuestCheck < 2 then
+        return
+    end
+    lastQuestCheck = currentTime
+    
+    -- Look for "Plant 100 Carrots" quest
+    local carrotQuest = getQuestByName("plant.*carrot")
+    
+    if carrotQuest then
+        local quest = carrotQuest.quest
+        local displayData = carrotQuest.displayData
+        
+        print("🥕 Found carrot planting quest:", displayData.Title)
+        print("🥕 Progress:", quest.Progress or 0, "/", quest.Target or 100)
+        
+        -- Check if quest is already completed
+        if quest.Completed then
+            print("✅ Carrot quest already completed!")
+            return
+        end
+        
+        -- Try to equip carrot seeds and plant
+        if findAndEquipCarrotSeed() then
+            if plantCarrot() then
+                local progress = quest.Progress or 0
+                local target = quest.Target or 100
+                Library:Notify("🥕 Planted carrot! Progress: " .. (progress + 1) .. "/" .. target, 2)
+            else
+                print("❌ Failed to plant carrot")
+            end
+        else
+            print("❌ Could not find or equip carrot seeds")
+            Library:Notify("❌ Need carrot seeds in inventory!", 3)
+        end
+    else
+        print("⏳ No 'Plant Carrots' quest found - waiting for quest...")
+        -- Only show notification every 30 seconds to avoid spam
+        if currentTime % 30 < 2 then
+            Library:Notify("⏳ Waiting for 'Plant Carrots' quest...", 2)
+        end
+    end
+end
+
+-- Auto Quest toggle
+AutoQuestGroupBox:AddToggle("AutoQuest", {
+    Text = "Auto Plant 100 Carrots Quest",
+    Tooltip = "Automatically completes the 'Plant 100 Carrots' prehistoric quest when it's available",
+    Default = false,
+    Callback = function(Value)
+        AutoQuestEnabled = Value
+        print("[cb] Auto Quest toggled:", Value)
+        
+        if Value then
+            Library:Notify("🥕 Auto Carrot Quest enabled!", 3)
+            print("🥕 Auto Quest started - looking for 'Plant 100 Carrots' quest...")
+            
+            -- Start auto quest loop
+            autoQuestConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoQuest()
+            end)
+        else
+            Library:Notify("🥕 Auto Carrot Quest disabled!", 3)
+            
+            -- Stop auto quest loop
+            if autoQuestConnection then
+                autoQuestConnection:Disconnect()
+                autoQuestConnection = nil
+            end
+        end
+    end,
+})
+
+-- ================================================================
 -- PREHISTORIC QUEST SYSTEM
 -- ================================================================
 local PrehistoricQuestGroupBox = EventTab:AddLeftGroupbox("Prehistoric Quest 🦴")
