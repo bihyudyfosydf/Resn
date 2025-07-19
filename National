@@ -604,7 +604,7 @@ MutationGroupBox:AddToggle("AutoSubmitPet", {
 -- ================================================================
 -- ZEN SYSTEM - AUTO COLLECT TRANQUIL PLANTS
 -- ================================================================
-local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘")
+local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘v2")
 
 -- Variables for Zen system
 local AutoCollectTranquilEnabled = false
