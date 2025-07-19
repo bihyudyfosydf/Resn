@@ -58,14 +58,20 @@ local function initializeCrafterTab()
     local AvailableRecipes = {
         "Peace Lily",
         "Aloe Vera", 
-        "Guanabana"
+        "Guanabana",
+        "Horsetail",
+        "Lingonberry",
+        "Amber Spine",
+        "Grand Volcania"
     }
 
     -- Available gear recipes
     local AvailableGearRecipes = {
         "Lightning Rod",
-        "Tropical Mist Sprinkler",
         "Reclaimer",
+        "Small Toy",
+        "Small Treat",
+        "Tropical Mist Sprinkler",
         "Berry Blusher Sprinkler",
         "Spice Spritzer Sprinkler",
         "Sweet Soaker Sprinkler",
@@ -73,6 +79,7 @@ local function initializeCrafterTab()
         "Stalk Sprout Sprinkler",
         "Mutation Spray Choc",
         "Mutation Spray Chilled",
+        "Mutation Spray Pollinated",
         "Mutation Spray Shocked",
         "Anti Bee Egg",
         "Pack Bee"
@@ -81,8 +88,9 @@ local function initializeCrafterTab()
     -- Available dino recipes
     local AvailableDinoRecipes = {
         "Mutation Spray Amber",
-        "Ancient Seed Pack",
-        "Dino Crate"
+        "Ancient Seed Pack", 
+        "Dino Crate",
+        "Archaeologist Crate"
     }
 
     -- Recipe data for inventory checking
@@ -108,6 +116,40 @@ local function initializeCrafterTab()
                 {ItemType = "Holdable", ItemName = "Banana"}
             },
             Cost = {CurrencyType = "SummerCoins", Amount = 30}
+        },
+        ["Horsetail"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Stonebite"},
+                {ItemType = "Holdable", ItemName = "Bamboo"},
+                {ItemType = "Holdable", ItemName = "Corn"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 15000}
+        },
+        ["Lingonberry"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Blueberry"},
+                {ItemType = "Seed", ItemName = "Blueberry"},
+                {ItemType = "Seed", ItemName = "Blueberry"},
+                {ItemType = "Holdable", ItemName = "Horsetail"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 450000}
+        },
+        ["Amber Spine"] = {
+            Inputs = {
+                {ItemType = "Seed", ItemName = "Cactus"},
+                {ItemType = "Holdable", ItemName = "Pumpkin"},
+                {ItemType = "Holdable", ItemName = "Horsetail"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 650000}
+        },
+        ["Grand Volcania"] = {
+            Inputs = {
+                {ItemType = "Holdable", ItemName = "Ember Lily"},
+                {ItemType = "Holdable", ItemName = "Ember Lily"},
+                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"},
+                {ItemType = "Seed Pack", ItemName = "Ancient Seed Pack"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 900000}
         }
     }
 
@@ -126,6 +168,44 @@ local function initializeCrafterTab()
             PurchaseID = 3265946758,
             RobuxPrice = 179
         },
+        ["Reclaimer"] = {
+            LayoutOrder = 8,
+            TimeToCraft = 1500,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Common Egg"},
+                {ItemType = "Harvest Tool", ItemName = "Harvest Tool"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 500000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3309686533,
+            RobuxPrice = 199
+        },
+        ["Small Toy"] = {
+            LayoutOrder = 113,
+            TimeToCraft = 600,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Common Egg"},
+                {ItemType = "Seed", ItemName = "Coconut"},
+                {ItemType = "Holdable", ItemName = "Coconut"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 1000000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3329526448,
+            RobuxPrice = 139
+        },
+        ["Small Treat"] = {
+            LayoutOrder = 115,
+            TimeToCraft = 600,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Common Egg"},
+                {ItemType = "Seed", ItemName = "Dragon Fruit"},
+                {ItemType = "Holdable", ItemName = "Blueberry"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 1000000},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3329527534,
+            RobuxPrice = 89
+        },
         ["Tropical Mist Sprinkler"] = {
             LayoutOrder = 10,
             TimeToCraft = 3600,
@@ -138,18 +218,6 @@ local function initializeCrafterTab()
             MachineTypes = {"GearEventWorkbench"},
             PurchaseID = 3306484251,
             RobuxPrice = 229
-        },
-        ["Reclaimer"] = {
-            LayoutOrder = 8,
-            TimeToCraft = 1500,
-            Inputs = {
-                {ItemType = "PetEgg", ItemName = "Common Egg"},
-                {ItemType = "Harvest Tool", ItemName = "Harvest Tool"}
-            },
-            Cost = {CurrencyType = "Sheckles", Amount = 500000},
-            MachineTypes = {"GearEventWorkbench"},
-            PurchaseID = 3309686533,
-            RobuxPrice = 199
         },
         ["Berry Blusher Sprinkler"] = {
             LayoutOrder = 20,
@@ -240,6 +308,18 @@ local function initializeCrafterTab()
             PurchaseID = 3317772898,
             RobuxPrice = 189
         },
+        ["Mutation Spray Pollinated"] = {
+            LayoutOrder = 80,
+            TimeToCraft = 300,
+            Inputs = {
+                {ItemType = "SprayBottle", ItemName = "Cleaning Spray"},
+                {ItemType = "Holdable", ItemName = "Bee Balm"}
+            },
+            Cost = {CurrencyType = "Honey", Amount = 25},
+            MachineTypes = {"GearEventWorkbench"},
+            PurchaseID = 3306484250,
+            RobuxPrice = 179
+        },
         ["Mutation Spray Shocked"] = {
             LayoutOrder = 90,
             TimeToCraft = 1800,
@@ -312,6 +392,17 @@ local function initializeCrafterTab()
             Cost = {CurrencyType = "Sheckles", Amount = 5500000},
             MachineTypes = {"DinoEventWorkbench"},
             PurchaseID = 3324601485,
+            RobuxPrice = 179
+        },
+        ["Archaeologist Crate"] = {
+            LayoutOrder = 115,
+            TimeToCraft = 1800,
+            Inputs = {
+                {ItemType = "PetEgg", ItemName = "Dinosaur Egg"}
+            },
+            Cost = {CurrencyType = "Sheckles", Amount = 5500000},
+            MachineTypes = {"DinoEventWorkbench"},
+            PurchaseID = 3329654888,
             RobuxPrice = 179
         }
     }
@@ -1199,7 +1290,7 @@ local function initializeCrafterTab()
     -- ================================================================
     -- Library:Notify("🔨 Simple Seed Crafter loaded!", 3) -- Disabled notification
     print("🔨 Simple Seed Crafter initialized with " .. #AvailableRecipes .. " recipes")
-    print("⚙️ Gear Crafter initialized with " .. #AvailableGearRecipes .. " gear recipes")
+    print("⚙️ Gear Crafter initialized with " .. #AvailableGearRecipes .. " gear recipes (includes new recipes: Small Toy, Small Treat, Mutation Spray Pollinated)")
     print("🦕 Dino Crafter initialized with " .. #AvailableDinoRecipes .. " dino recipes")
 
     return true
