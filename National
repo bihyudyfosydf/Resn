@@ -2816,9 +2816,6 @@ MutationGroupBox:AddToggle("AutoSubmitPet", {
     end,
 })
 
-MutationGroupBox:AddLabel("ℹ️ Only selected pets with Age 50+ will be submitted")
-MutationGroupBox:AddLabel("🔄 System checks inventory every 5 seconds")
-MutationGroupBox:AddLabel("⚠️ Select pets using dropdown before enabling!")
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
