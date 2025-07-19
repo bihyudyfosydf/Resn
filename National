@@ -864,6 +864,349 @@ ZenGroupBox:AddButton("🧘 Collect TRANQUIL Now", {
     end,
 })
 
+ZenGroupBox:AddDivider()
+
+-- ================================================================
+-- ZEN SUBMISSION SYSTEM
+-- ================================================================
+
+-- Variables for Zen submission system
+local SelectedZenMode = "ZEN SHOP"
+local AutoSubmitZenEnabled = false
+local autoSubmitZenConnection = nil
+local isSubmittingZen = false
+
+-- Remote events for Zen submission
+local ZenQuestRemoteEvent = Services.ReplicatedStorage.GameEvents:FindFirstChild("ZenQuestRemoteEvent")
+local ZenAuraRemoteEvent = Services.ReplicatedStorage.GameEvents:FindFirstChild("ZenAuraRemoteEvent")
+
+-- Function to check if a plant/fruit has TRANQUIL mutation (enhanced detection)
+local function hasTranquilMutationInInventory(item)
+    if not item then return false end
+    
+    -- Method 1: Check for TRANQUIL mutation as StringValue object
+    local tranquilObj = item:FindFirstChild("Tranquil")
+    if tranquilObj and tranquilObj:IsA("StringValue") then
+        print("🧘 Found TRANQUIL StringValue on:", item.Name)
+        return true
+    end
+    
+    -- Method 2: Check for TRANQUIL mutation as attribute
+    if item:GetAttribute("Tranquil") then
+        print("🧘 Found TRANQUIL attribute on:", item.Name)
+        return true
+    end
+    
+    -- Method 3: Check for TRANQUIL in item name (some items might have it in the name)
+    if string.find(string.upper(item.Name), "TRANQUIL") then
+        print("🧘 Found TRANQUIL in name:", item.Name)
+        return true
+    end
+    
+    -- Method 4: Check all child objects for any TRANQUIL references
+    for _, child in pairs(item:GetChildren()) do
+        if child.Name == "Tranquil" or string.find(string.upper(child.Name), "TRANQUIL") then
+            print("🧘 Found TRANQUIL child object:", child.Name, "on item:", item.Name)
+            return true
+        end
+        
+        -- Check child values
+        if child:IsA("StringValue") and string.find(string.upper(child.Value), "TRANQUIL") then
+            print("🧘 Found TRANQUIL in child StringValue:", child.Name, "=", child.Value, "on item:", item.Name)
+            return true
+        end
+    end
+    
+    -- Method 5: Check all attributes for TRANQUIL references
+    for attrName, attrValue in pairs(item:GetAttributes()) do
+        if string.find(string.upper(attrName), "TRANQUIL") or (type(attrValue) == "string" and string.find(string.upper(attrValue), "TRANQUIL")) then
+            print("🧘 Found TRANQUIL in attribute:", attrName, "=", attrValue, "on item:", item.Name)
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Function to get TRANQUIL plants from player's backpack
+local function getTranquilPlantsFromBackpack()
+    local tranquilPlants = {}
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    
+    if not backpack then
+        return tranquilPlants
+    end
+    
+    -- Search through all tools in backpack
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            -- Check if this tool has TRANQUIL mutation
+            if hasTranquilMutationInInventory(tool) then
+                table.insert(tranquilPlants, tool)
+                print("🧘 Found TRANQUIL plant in backpack:", tool.Name)
+            end
+        end
+    end
+    
+    return tranquilPlants
+end
+
+-- Function to equip a specific plant tool
+local function equipPlantTool(plantTool)
+    local success, result = pcall(function()
+        -- Make sure we have a character
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("Humanoid") then
+            return false
+        end
+        
+        -- Check if plant is still in backpack
+        if not plantTool or not plantTool.Parent or plantTool.Parent ~= LocalPlayer.Backpack then
+            return false
+        end
+        
+        -- Equip the plant
+        LocalPlayer.Character.Humanoid:EquipTool(plantTool)
+        print("🧘 Equipped plant:", plantTool.Name)
+        
+        -- Wait a moment for the equip to register
+        task.wait(0.5)
+        
+        -- Verify plant is actually equipped
+        local equippedPlant = LocalPlayer.Character:FindFirstChild(plantTool.Name)
+        if equippedPlant then
+            return true
+        else
+            return false
+        end
+    end)
+    
+    if not success then
+        print("❌ Error equipping plant:", result)
+        return false
+    end
+    
+    return result
+end
+
+-- Function to submit held plant based on selected mode
+local function submitHeldPlantForZen()
+    local success, result = pcall(function()
+        -- Check if we have a plant equipped
+        local equippedPlant = nil
+        if LocalPlayer.Character then
+            equippedPlant = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+        end
+        
+        if not equippedPlant then
+            print("📭 No plant equipped to submit")
+            return false
+        end
+        
+        -- Submit based on selected mode
+        if SelectedZenMode == "ZEN SHOP" then
+            if not ZenQuestRemoteEvent then
+                print("❌ ZenQuestRemoteEvent not found!")
+                return false
+            end
+            
+            ZenQuestRemoteEvent:FireServer("SubmitHeldPlant")
+            print("🧘 Submitted plant to ZEN SHOP:", equippedPlant.Name)
+            Library:Notify("🧘 ZEN SHOP: " .. equippedPlant.Name, 2)
+            
+        elseif SelectedZenMode == "ZEN CHANNELLER" then
+            if not ZenAuraRemoteEvent then
+                print("❌ ZenAuraRemoteEvent not found!")
+                return false
+            end
+            
+            ZenAuraRemoteEvent:FireServer("SubmitHeldPlant")
+            print("🧘 Submitted plant to ZEN CHANNELLER:", equippedPlant.Name)
+            Library:Notify("🧘 ZEN CHANNELLER: " .. equippedPlant.Name, 2)
+        end
+        
+        return true
+    end)
+    
+    if not success then
+        print("❌ Error submitting plant for zen:", result)
+        return false
+    end
+    
+    return result
+end
+
+-- Function to unequip current plant (move back to backpack)
+local function unequipCurrentPlant()
+    local success, result = pcall(function()
+        if not LocalPlayer.Character then
+            return true
+        end
+        
+        local equippedPlant = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+        if equippedPlant then
+            -- Move plant back to backpack
+            equippedPlant.Parent = LocalPlayer.Backpack
+            print("🧘 Unequipped plant:", equippedPlant.Name)
+            task.wait(0.3) -- Wait for unequip to register
+        end
+        
+        return true
+    end)
+    
+    return success and result
+end
+
+-- Main function to auto submit TRANQUIL plants
+local function performAutoSubmitZen()
+    if not AutoSubmitZenEnabled or isSubmittingZen then
+        return
+    end
+    
+    -- Check if character exists
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    isSubmittingZen = true
+    
+    local success, result = pcall(function()
+        local tranquilPlants = getTranquilPlantsFromBackpack()
+        
+        if #tranquilPlants == 0 then
+            -- Only notify every 30 seconds to avoid spam
+            local currentTime = tick()
+            if not _G.LastZenSubmissionCheck or currentTime - _G.LastZenSubmissionCheck > 30 then
+                print("🧘 No TRANQUIL plants found in backpack for " .. SelectedZenMode)
+                _G.LastZenSubmissionCheck = currentTime
+            end
+            return
+        end
+        
+        print("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants to submit to " .. SelectedZenMode)
+        Library:Notify("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants for " .. SelectedZenMode .. "!", 2)
+        
+        local submittedCount = 0
+        
+        -- Submit each TRANQUIL plant
+        for i, plantTool in pairs(tranquilPlants) do
+            if not AutoSubmitZenEnabled then
+                break
+            end
+            
+            -- Check if character still exists
+            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                break
+            end
+            
+            print("🧘 Processing TRANQUIL plant " .. i .. "/" .. #tranquilPlants .. ":", plantTool.Name)
+            
+            -- Unequip any currently equipped tool first
+            unequipCurrentPlant()
+            task.wait(0.5)
+            
+            -- Equip the plant
+            local equipped = equipPlantTool(plantTool)
+            if equipped then
+                task.wait(0.5) -- Wait for equip to fully register
+                
+                -- Submit the plant
+                local submitted = submitHeldPlantForZen()
+                if submitted then
+                    submittedCount = submittedCount + 1
+                    task.wait(1) -- Wait between submissions
+                else
+                    print("❌ Failed to submit plant:", plantTool.Name)
+                end
+            else
+                print("❌ Failed to equip plant:", plantTool.Name)
+            end
+            
+            -- Small delay between plants
+            task.wait(0.5)
+        end
+        
+        if submittedCount > 0 then
+            Library:Notify("🧘 Successfully submitted " .. submittedCount .. " TRANQUIL plants to " .. SelectedZenMode .. "!", 3)
+        end
+    end)
+    
+    if not success then
+        print("❌ Error in auto submit zen:", result)
+    end
+    
+    isSubmittingZen = false
+end
+
+-- Zen Mode Selection Dropdown
+ZenGroupBox:AddDropdown("ZenModeSelection", {
+    Values = {"ZEN SHOP", "ZEN CHANNELLER"},
+    Default = "ZEN SHOP",
+    Multi = false,
+    Text = "Select Zen Mode",
+    Tooltip = "Choose which Zen system to submit TRANQUIL plants to:\n• ZEN SHOP: Uses ZenQuestRemoteEvent\n• ZEN CHANNELLER: Uses ZenAuraRemoteEvent",
+    
+    Callback = function(Value)
+        SelectedZenMode = Value
+        print("[cb] Selected Zen mode:", Value)
+        Library:Notify("🧘 Selected mode: " .. Value, 2)
+    end,
+})
+
+-- Auto Submit Zen toggle
+ZenGroupBox:AddToggle("AutoSubmitZen", {
+    Text = "Auto Submit TRANQUIL Plants",
+    Tooltip = "Automatically submit TRANQUIL plants from your backpack to the selected Zen system",
+    Default = false,
+    Callback = function(Value)
+        AutoSubmitZenEnabled = Value
+        print("[cb] Auto Submit Zen toggled:", Value)
+        
+        if Value then
+            Library:Notify("🧘 Auto submit " .. SelectedZenMode .. " enabled!", 3)
+            
+            -- Start auto submit loop (check every 5 seconds)
+            autoSubmitZenConnection = task.spawn(function()
+                while AutoSubmitZenEnabled do
+                    performAutoSubmitZen()
+                    task.wait(5) -- Wait 5 seconds between checks
+                end
+            end)
+        else
+            Library:Notify("🧘 Auto submit " .. SelectedZenMode .. " disabled!", 3)
+            
+            -- Stop auto submit loop
+            if autoSubmitZenConnection then
+                task.cancel(autoSubmitZenConnection)
+                autoSubmitZenConnection = nil
+            end
+            
+            -- Reset submitting flag
+            isSubmittingZen = false
+        end
+    end,
+})
+
+-- Manual Zen submission button
+ZenGroupBox:AddButton("🧘 Submit TRANQUIL Now", {
+    Text = "Submit TRANQUIL Now",
+    Tooltip = "Manually submit all TRANQUIL plants from your backpack to the selected Zen system",
+    Callback = function()
+        print("[cb] Manual Zen submission triggered for mode:", SelectedZenMode)
+        
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            Library:Notify("❌ Character not ready! Try again in a moment.", 3)
+            return
+        end
+        
+        -- Run submission once
+        task.spawn(function()
+            performAutoSubmitZen()
+        end)
+        
+        Library:Notify("🧘 Submitting TRANQUIL plants to " .. SelectedZenMode .. "...", 2)
+    end,
+})
+
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
