@@ -2816,7 +2816,6 @@ MutationGroupBox:AddToggle("AutoSubmitPet", {
     end,
 })
 
-
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
