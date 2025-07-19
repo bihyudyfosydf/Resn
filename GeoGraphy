@@ -58,25 +58,27 @@ local PlantsToMoveTo = {}
 local PlantMoveEnabled = false
 local MinMoveDistance = 20 -- Only move plants farther than this distance from target
 
--- Complete list of all plants and fruits in the game
+-- Complete list of all plants and fruits in the game (Updated from GrowableData.module.lua)
 local AllPlantsAndFruits = {
-    "Aloe Vera", "Apple", "Avocado", "Bamboo", "Banana", "Beanstalk", "Bee Balm", "Bell Pepper",
+    "Aloe Vera", "Amber Spine", "Apple", "Avocado", "Bamboo", "Banana", "Beanstalk", "Bee Balm", "Bell Pepper",
     "Bendboo", "Blood Banana", "Blue Lollipop", "Blueberry", "Bone Blossom", "Boneboo", "Burning Bud", 
     "Cacao", "Cactus", "Candy Blossom", "Candy Sunflower", "Cantaloupe", "Carrot", "Cauliflower", 
     "Celestiberry", "Cherry Blossom", "Cherry OLD", "Chocolate Carrot", "Cocovine", "Coconut", "Corn", 
     "Cranberry", "Crimson Vine", "Crocus", "Cursed Fruit", "Daffodil", "Dandelion", "Delphinium", 
-    "Dragon Fruit", "Dragon Pepper", "Durian", "Easter Egg", "Eggplant", "Elephant Ears", "Ember Lily", 
-    "Feijoa", "Firefly Fern", "Firework Flower", "Fossilight", "Foxglove", "Glowshroom", "Grape", 
-    "Green Apple", "Guanabana", "Hive Fruit", "Honeysuckle", "Horned Dinoshroom", "Ice Cream Bean", 
-    "Kiwi", "Lavender", "Lemon", "Liberty Lily", "Lilac", "Lily of the Valley", "Lime", "Loquat", 
-    "Lotus", "Lumira", "Mango", "Manuka Flower", "Mega Mushroom", "Merica Mushroom", "Mint", 
-    "Moon Blossom", "Moon Mango", "Moon Melon", "Moonflower", "Moonglow", "Mushroom", "Nectar Thorn", 
-    "Nectarine", "Nectarshade", "Nightshade", "Noble Flower", "Orange Tulip", "Papaya", "Paradise Petal", 
+    "Dragon Fruit", "Dragon Pepper", "Dragon Sapling", "Durian", "Easter Egg", "Eggplant", "Elephant Ears", 
+    "Ember Lily", "Feijoa", "Firefly Fern", "Firework Flower", "Fossilight", "Foxglove", "Giant Pinecone", 
+    "Glowshroom", "Grand Volcania", "Grape", "Green Apple", "Guanabana", "Hinomai", "Hive Fruit", 
+    "Honeysuckle", "Horned Dinoshroom", "Horsetail", "Ice Cream Bean", "Kiwi", "Lavender", "Lemon", 
+    "Liberty Lily", "Lilac", "Lily of the Valley", "Lime", "Lingonberry", "Loquat", "Lotus", "Lumira", 
+    "Mango", "Manuka Flower", "Maple Apple", "Mega Mushroom", "Merica Mushroom", "Mint", "Monoblooma", 
+    "Moon Blossom", "Moon Mango", "Moon Melon", "Moonflower", "Moonglow", "Mushroom", "Nectarine", 
+    "Nectarshade", "Nightshade", "Noble Flower", "Orange Tulip", "Papaya", "Paradise Petal", 
     "Parasol Flower", "Passionfruit", "Peace Lily", "Peach", "Pear", "Pepper", "Pineapple", "Pink Lily", 
     "Pink Tulip", "Pitcher Plant", "Prickly Pear", "Pumpkin", "Purple Cabbage", "Purple Dahlia", 
-    "Rafflesia", "Raspberry", "Red Lollipop", "Rose", "Rosy Delight", "Soul Fruit", "Starfruit", 
-    "Stonebite", "Strawberry", "Succulent", "Sugar Apple", "Suncoil", "Sunflower", "Tomato", 
-    "Traveler's Fruit", "Venus Fly Trap", "Violet Corn", "Watermelon", "White Mulberry", "Wild Carrot"
+    "Rafflesia", "Raspberry", "Red Lollipop", "Rose", "Rosy Delight", "Serenity", "Soft Sunshine", 
+    "Soul Fruit", "Spiked Mango", "Starfruit", "Stonebite", "Strawberry", "Succulent", "Sugar Apple", 
+    "Suncoil", "Sunflower", "Taro Flower", "Tomato", "Traveler's Fruit", "Venus Fly Trap", "Violet Corn", 
+    "Watermelon", "White Mulberry", "Wild Carrot", "Zen Rocks", "Zenflare"
 }
 
 -- Plants to move FROM dropdown
