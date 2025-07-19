@@ -2104,6 +2104,327 @@ QuestInfoGroupBox:AddLabel("to the Event tab since they")
 QuestInfoGroupBox:AddLabel("already exist elsewhere!")
 
 -- ================================================================
+-- AUTO UPGRADE SYSTEM
+-- ================================================================
+local AutoUpgradeGroupBox = EventTab:AddLeftGroupbox("Auto Upgrade ⚡")
+
+-- Variables for Auto Upgrade system
+local AutoCollectTempestuousEnabled = false
+local AutoGivePlantsEnabled = false
+local autoCollectConnection = nil
+local autoGiveConnection = nil
+local GivePlantsMode = "Give Plant in hand" -- Default mode
+local OriginalPlayerPosition = nil
+
+-- Get the DinoMachineService remote
+local DinoMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("DinoMachineService_RE")
+
+-- Function to get player's farm (reused from Main)
+local function getMyFarm()
+    for _, farm in Services.Workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data.Owner.Value == LocalPlayer.Name then
+                return farm
+            end
+        end
+    end
+    return nil
+end
+
+-- Function to check if plant/fruit has Tempestuous mutation
+local function hasTempestuousMutation(item)
+    -- Check if mutation exists as a StringValue object
+    local mutationObj = item:FindFirstChild("Tempestuous")
+    if mutationObj and mutationObj:IsA("StringValue") then
+        print("⚡ Found Tempestuous mutation StringValue on:", item.Name)
+        return true
+    end
+
+    -- Check if mutation exists as an attribute
+    if item:GetAttribute("Tempestuous") then
+        print("⚡ Found Tempestuous mutation attribute on:", item.Name)
+        return true
+    end
+
+    return false
+end
+
+-- Function to teleport to plant and collect it
+local function teleportAndCollectPlant(plant)
+    local success, result = pcall(function()
+        -- Store original position if not already stored
+        if not OriginalPlayerPosition and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            OriginalPlayerPosition = LocalPlayer.Character.HumanoidRootPart.Position
+            print("📍 Stored original position:", OriginalPlayerPosition)
+        end
+
+        -- Get plant position
+        local plantPosition = nil
+        if plant.PrimaryPart then
+            plantPosition = plant.PrimaryPart.Position
+        elseif plant:FindFirstChild("HumanoidRootPart") then
+            plantPosition = plant.HumanoidRootPart.Position
+        else
+            -- Find any part in the plant to use as reference
+            for _, child in pairs(plant:GetChildren()) do
+                if child:IsA("BasePart") then
+                    plantPosition = child.Position
+                    break
+                end
+            end
+        end
+
+        if not plantPosition then
+            print("❌ Could not determine plant position for:", plant.Name)
+            return false
+        end
+
+        -- Teleport to plant
+        local teleportPosition = plantPosition + Vector3.new(0, 2, 0) -- Slightly above plant
+        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(teleportPosition)
+        print("🚀 Teleported to plant:", plant.Name, "at position:", teleportPosition)
+        
+        task.wait(0.5) -- Wait for teleport to register
+
+        -- Look for fruits in the plant with Tempestuous mutation
+        local fruitsFolder = plant:FindFirstChild("Fruits")
+        if fruitsFolder then
+            local collectedCount = 0
+            for _, fruit in pairs(fruitsFolder:GetChildren()) do
+                if hasTempestuousMutation(fruit) then
+                    -- Simulate collecting the fruit (click on it)
+                    local clickDetector = fruit:FindFirstChildOfClass("ClickDetector")
+                    if clickDetector then
+                        fireclickdetector(clickDetector)
+                        collectedCount = collectedCount + 1
+                        print("⚡ Collected Tempestuous fruit:", fruit.Name)
+                        task.wait(0.2) -- Small delay between collections
+                    end
+                end
+            end
+            
+            if collectedCount > 0 then
+                Library:Notify("⚡ Collected " .. collectedCount .. " Tempestuous fruits from " .. plant.Name, 2)
+                return true
+            end
+        end
+
+        return false
+    end)
+
+    if not success then
+        print("❌ Error teleporting and collecting plant:", result)
+        return false
+    end
+
+    return result
+end
+
+-- Function to auto collect all Tempestuous plants from farm
+local function performAutoCollectTempestuous()
+    if not AutoCollectTempestuousEnabled then return end
+
+    local myFarm = getMyFarm()
+    if not myFarm then
+        print("❌ No farm found")
+        return
+    end
+
+    local important = myFarm:FindFirstChild("Important")
+    local plantsPhysical = important and important:FindFirstChild("Plants_Physical")
+    if not plantsPhysical then
+        print("❌ No plants found in farm")
+        return
+    end
+
+    local tempestuousPlants = {}
+    
+    -- Find all plants with Tempestuous mutation
+    for _, plant in pairs(plantsPhysical:GetChildren()) do
+        -- Check if plant is fully grown
+        local grow = plant:FindFirstChild("Grow")
+        local isFullyGrown = true
+        if grow and grow:FindFirstChild("Age") then
+            local maxAge = plant:GetAttribute("MaxAge")
+            if maxAge and grow.Age.Value < maxAge then
+                isFullyGrown = false
+            end
+        end
+
+        if isFullyGrown then
+            -- Look for fruits with Tempestuous mutation
+            local fruitsFolder = plant:FindFirstChild("Fruits")
+            if fruitsFolder then
+                for _, fruit in pairs(fruitsFolder:GetChildren()) do
+                    if hasTempestuousMutation(fruit) then
+                        table.insert(tempestuousPlants, plant)
+                        break -- Found at least one Tempestuous fruit, add plant to list
+                    end
+                end
+            end
+        end
+    end
+
+    if #tempestuousPlants == 0 then
+        print("📭 No plants with Tempestuous fruits found")
+        return
+    end
+
+    print("⚡ Found " .. #tempestuousPlants .. " plants with Tempestuous fruits")
+    
+    local totalCollected = 0
+    for _, plant in pairs(tempestuousPlants) do
+        if not AutoCollectTempestuousEnabled then break end
+        
+        local collected = teleportAndCollectPlant(plant)
+        if collected then
+            totalCollected = totalCollected + 1
+        end
+        
+        task.wait(1) -- Delay between plants
+    end
+
+    -- Teleport back to original position
+    if OriginalPlayerPosition and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(OriginalPlayerPosition + Vector3.new(0, 2, 0))
+        print("🏠 Teleported back to original position")
+        task.wait(0.5)
+    end
+
+    if totalCollected > 0 then
+        Library:Notify("⚡ Auto collected from " .. totalCollected .. " Tempestuous plants!", 3)
+    end
+end
+
+-- Function to give plants to machine
+local function performAutoGivePlants()
+    if not AutoGivePlantsEnabled then return end
+
+    if not DinoMachineService_RE then
+        print("❌ DinoMachineService_RE not found!")
+        return
+    end
+
+    local success, error = pcall(function()
+        if GivePlantsMode == "Give Plant in hand" then
+            -- Check if player has a fruit/plant equipped
+            local equippedTool = nil
+            if LocalPlayer.Character then
+                equippedTool = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+            end
+
+            if equippedTool then
+                DinoMachineService_RE:FireServer("SubmitHeldPlant")
+                print("⚡ Submitted held plant:", equippedTool.Name)
+                Library:Notify("⚡ Submitted held plant: " .. equippedTool.Name, 2)
+            else
+                print("📭 No plant in hand to submit")
+            end
+        elseif GivePlantsMode == "Give All Plants" then
+            DinoMachineService_RE:FireServer("SubmitAllPlants")
+            print("⚡ Submitted all plants to machine")
+            Library:Notify("⚡ Submitted all plants to machine", 2)
+        end
+    end)
+
+    if not success then
+        print("❌ Error giving plants to machine:", error)
+    end
+end
+
+-- Auto Collect Tempestuous toggle
+AutoUpgradeGroupBox:AddToggle("AutoCollectTempestuous", {
+    Text = "Auto Collect Tempestuous Plants",
+    Tooltip = "Automatically teleport to and collect all plants with Tempestuous mutation from your farm",
+    Default = false,
+    Callback = function(Value)
+        AutoCollectTempestuousEnabled = Value
+        print("[cb] Auto Collect Tempestuous toggled:", Value)
+        
+        if Value then
+            Library:Notify("⚡ Auto collect Tempestuous plants enabled!", 3)
+            
+            -- Start auto collect loop (check every 30 seconds to avoid spam)
+            autoCollectConnection = task.spawn(function()
+                while AutoCollectTempestuousEnabled do
+                    performAutoCollectTempestuous()
+                    task.wait(30) -- Wait 30 seconds between collection cycles
+                end
+            end)
+        else
+            Library:Notify("⚡ Auto collect Tempestuous plants disabled!", 3)
+            
+            -- Stop auto collect loop
+            if autoCollectConnection then
+                task.cancel(autoCollectConnection)
+                autoCollectConnection = nil
+            end
+        end
+    end,
+})
+
+-- Give Plants Mode dropdown
+AutoUpgradeGroupBox:AddDropdown("GivePlantsMode", {
+    Values = {"Give Plant in hand", "Give All Plants"},
+    Default = 1,
+    Text = "Give Plants Mode",
+    Tooltip = "Choose how to give plants to the dino machine",
+    Callback = function(Value)
+        GivePlantsMode = Value
+        print("[cb] Give Plants Mode changed to:", Value)
+        Library:Notify("Mode changed to: " .. Value, 2)
+    end,
+})
+
+-- Auto Give Plants toggle
+AutoUpgradeGroupBox:AddToggle("AutoGivePlants", {
+    Text = "Auto Give Plants to Machine",
+    Tooltip = "Automatically give plants to dino machine every 3 seconds using selected mode",
+    Default = false,
+    Callback = function(Value)
+        AutoGivePlantsEnabled = Value
+        print("[cb] Auto Give Plants toggled:", Value)
+        
+        if Value then
+            Library:Notify("⚡ Auto give plants to machine enabled! Mode: " .. GivePlantsMode, 3)
+            
+            -- Start auto give loop (every 3 seconds as requested)
+            autoGiveConnection = task.spawn(function()
+                while AutoGivePlantsEnabled do
+                    performAutoGivePlants()
+                    task.wait(3) -- Wait 3 seconds between gives
+                end
+            end)
+        else
+            Library:Notify("⚡ Auto give plants to machine disabled!", 3)
+            
+            -- Stop auto give loop
+            if autoGiveConnection then
+                task.cancel(autoGiveConnection)
+                autoGiveConnection = nil
+            end
+        end
+    end,
+})
+
+-- Manual buttons for testing
+AutoUpgradeGroupBox:AddDivider()
+
+AutoUpgradeGroupBox:AddButton("⚡ Collect Tempestuous Now", function()
+    Library:Notify("⚡ Manually collecting Tempestuous plants...", 2)
+    task.spawn(function()
+        performAutoCollectTempestuous()
+    end)
+end)
+
+AutoUpgradeGroupBox:AddButton("🔧 Give Plants Now", function()
+    Library:Notify("🔧 Manually giving plants to machine...", 2)
+    performAutoGivePlants()
+end)
+
+-- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
 -- ================================================================
 print("🎉 Event Tab initialized successfully!")
