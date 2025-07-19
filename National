@@ -2412,7 +2412,7 @@ AutoUpgradeGroupBox:AddToggle("AutoGivePlants", {
 -- ================================================================
 -- MUTATION SYSTEM
 -- ================================================================
-local MutationGroupBox = EventTab:AddRightGroupbox("Mutation 🧬")
+local MutationGroupBox = EventTab:AddLeftGroupbox("Mutation 🧬")
 
 -- Variables for Mutation system
 local AutoSubmitPetEnabled = false
