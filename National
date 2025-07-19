@@ -49,6 +49,168 @@ local LocalPlayer = Services.Players.LocalPlayer
 local EventTab = Window:AddTab("Event", "calendar")
 
 -- ================================================================
+-- ZEN EVENT SYSTEM
+-- ================================================================
+
+-- Create Zen Event Tabbox
+local ZenEventTabBox = EventTab:AddRightTabbox("Zen Event")
+
+-- Zen Event Tab
+local ZenEventTab = ZenEventTabBox:AddTab("Zen Event")
+
+-- Global variables for Zen Event
+local AutoBuyZenEventEnabled = false
+local SelectedZenEventItems = {}
+
+-- All Zen Event items (from ZenEventShopData)
+local AllZenEventItems = {
+    "Zen Seed Pack",
+    "Zen Egg",
+    "Hot Spring",
+    "Zen Sand",
+    "Zenflare",
+    "Zen Crate",
+    "Soft Sunshine",
+    "Koi",
+    "Zen Gnome Crate",
+    "Spiked Mango",
+    "Pet Shard Tranquil"
+}
+
+-- Add elements directly to Zen Event Tab
+ZenEventTab:AddLabel("🧘 Zen Event Auto Buy System")
+ZenEventTab:AddDivider()
+
+-- Dropdown for zen event item selection
+ZenEventTab:AddDropdown("ZenEventItemSelection", {
+    Values = AllZenEventItems,
+    Default = 1,
+    Multi = true, -- Allow multiple selections
+    Text = "Select Zen Event Items",
+    Tooltip = "Choose which zen event items to auto buy",
+    Callback = function(Value)
+        print("[cb] Selected zen event items for auto buy changed:")
+        SelectedZenEventItems = Value
+        for item, selected in next, Library.Options.ZenEventItemSelection.Value do
+            print(item, selected)
+        end
+    end
+})
+
+-- Function to buy zen event items using the provided remote
+local function buyZenEventItems()
+    if not SelectedZenEventItems or not next(SelectedZenEventItems) then
+        print("❌ No zen event items selected for purchase")
+        return
+    end
+
+    local BuyEventShopStock = game:GetService("ReplicatedStorage"):WaitForChild("GameEvents"):WaitForChild("BuyEventShopStock")
+    
+    for itemName, isSelected in pairs(SelectedZenEventItems) do
+        if isSelected and AutoBuyZenEventEnabled then
+            local success, err = pcall(function()
+                BuyEventShopStock:FireServer(itemName)
+            end)
+            
+            if success then
+                print("✅ Successfully bought:", itemName)
+            else
+                print("❌ Failed to buy:", itemName, "Error:", err)
+            end
+            
+            task.wait(0.5) -- Small delay between purchases
+        end
+    end
+end
+
+-- Auto Buy Zen Event Items Toggle
+ZenEventTab:AddToggle("AutoBuyZenEvent", {
+    Text = "Auto Buy Zen Event Items",
+    Default = false,
+    Tooltip = "Automatically buy selected zen event items continuously until disabled",
+    Callback = function(Value)
+        AutoBuyZenEventEnabled = Value
+        if Value then
+            -- Check if items are selected
+            if not SelectedZenEventItems or not next(SelectedZenEventItems) then
+                Library:Notify("⚠️ Please select zen event items first!", 3)
+                Library.Toggles.AutoBuyZenEvent:SetValue(false)
+                return
+            end
+
+            local selectedCount = 0
+            for _, selected in pairs(SelectedZenEventItems) do
+                if selected then selectedCount = selectedCount + 1 end
+            end
+
+            Library:Notify("🧘 Auto Buy Zen Event enabled! Will buy " .. selectedCount .. " selected items continuously.", 3)
+
+            -- Start auto buy loop
+            task.spawn(function()
+                while AutoBuyZenEventEnabled do
+                    buyZenEventItems()
+                    local interval = Library.Options.ZenEventBuyInterval and Library.Options.ZenEventBuyInterval.Value or 2
+                    task.wait(interval) -- Use the slider value for interval
+                end
+            end)
+        else
+            Library:Notify("🧘 Auto Buy Zen Event disabled!", 3)
+        end
+    end
+})
+
+-- Manual buy button
+ZenEventTab:AddButton("🧘 Buy Selected Items Now", function()
+    if not SelectedZenEventItems or not next(SelectedZenEventItems) then
+        Library:Notify("⚠️ Please select zen event items first!", 3)
+        return
+    end
+    buyZenEventItems()
+end)
+
+-- Purchase interval slider
+ZenEventTab:AddSlider("ZenEventBuyInterval", {
+    Text = "Buy Interval (seconds)",
+    Default = 2,
+    Min = 1,
+    Max = 10,
+    Rounding = 1,
+    Compact = false,
+    Tooltip = "How often to attempt purchasing selected items (1-10 seconds)",
+    Callback = function(Value)
+        print("[cb] Zen event buy interval changed to", Value, "seconds")
+    end
+})
+
+-- Select All Zen Event Items button
+ZenEventTab:AddButton("Select All Zen Event Items", function()
+    -- Select all items in the dropdown
+    local allSelected = {}
+    for _, item in pairs(AllZenEventItems) do
+        allSelected[item] = true
+    end
+    
+    if Library.Options.ZenEventItemSelection then
+        Library.Options.ZenEventItemSelection:SetValue(allSelected)
+    end
+    
+    Library:Notify("✅ Selected all zen event items", 2)
+end)
+
+-- Clear All Selections button
+ZenEventTab:AddButton("Clear All Selections", function()
+    if Library.Options.ZenEventItemSelection then
+        Library.Options.ZenEventItemSelection:SetValue({})
+    end
+    
+    Library:Notify("🗑️ Cleared all zen event item selections", 2)
+end)
+
+-- Success notification for Zen Event
+Library:Notify("🧘 Zen Event system loaded successfully!", 3)
+print("🧘 Event Tab: Zen Event system loaded successfully")
+
+-- ================================================================
 -- AUTO HATCH SYSTEM
 -- ================================================================
 local AutoHatchGroupBox = EventTab:AddLeftGroupbox("AutoHatch 🥚")
