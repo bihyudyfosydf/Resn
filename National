@@ -843,27 +843,6 @@ ZenGroupBox:AddToggle("AutoCollectTranquil", {
     end,
 })
 
--- Manual TRANQUIL collection button
-ZenGroupBox:AddButton("🧘 Collect TRANQUIL Now", {
-    Text = "Collect TRANQUIL Now",
-    Tooltip = "Manually collect all TRANQUIL plants on your farm right now",
-    Callback = function()
-        print("[cb] Manual TRANQUIL collection triggered")
-        
-        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            Library:Notify("❌ Character not ready! Try again in a moment.", 3)
-            return
-        end
-        
-        -- Run collection once
-        task.spawn(function()
-            performAutoCollectTranquil()
-        end)
-        
-        Library:Notify("🧘 Collecting TRANQUIL plants...", 2)
-    end,
-})
-
 ZenGroupBox:AddDivider()
 
 -- ================================================================
@@ -1004,22 +983,22 @@ local function submitHeldPlantForZen()
         
         -- Submit based on selected mode
         if SelectedZenMode == "ZEN SHOP" then
-            if not ZenQuestRemoteEvent then
-                print("❌ ZenQuestRemoteEvent not found!")
-                return false
-            end
-            
-            ZenQuestRemoteEvent:FireServer("SubmitHeldPlant")
-            print("🧘 Submitted plant to ZEN SHOP:", equippedPlant.Name)
-            Library:Notify("🧘 ZEN SHOP: " .. equippedPlant.Name, 2)
-            
-        elseif SelectedZenMode == "ZEN CHANNELLER" then
             if not ZenAuraRemoteEvent then
                 print("❌ ZenAuraRemoteEvent not found!")
                 return false
             end
             
             ZenAuraRemoteEvent:FireServer("SubmitHeldPlant")
+            print("🧘 Submitted plant to ZEN SHOP:", equippedPlant.Name)
+            Library:Notify("🧘 ZEN SHOP: " .. equippedPlant.Name, 2)
+            
+        elseif SelectedZenMode == "ZEN CHANNELLER" then
+            if not ZenQuestRemoteEvent then
+                print("❌ ZenQuestRemoteEvent not found!")
+                return false
+            end
+            
+            ZenQuestRemoteEvent:FireServer("SubmitHeldPlant")
             print("🧘 Submitted plant to ZEN CHANNELLER:", equippedPlant.Name)
             Library:Notify("🧘 ZEN CHANNELLER: " .. equippedPlant.Name, 2)
         end
@@ -1143,7 +1122,7 @@ ZenGroupBox:AddDropdown("ZenModeSelection", {
     Default = "ZEN SHOP",
     Multi = false,
     Text = "Select Zen Mode",
-    Tooltip = "Choose which Zen system to submit TRANQUIL plants to:\n• ZEN SHOP: Uses ZenQuestRemoteEvent\n• ZEN CHANNELLER: Uses ZenAuraRemoteEvent",
+    Tooltip = "Choose which Zen system to submit TRANQUIL plants to:\n• ZEN SHOP: Uses ZenAuraRemoteEvent\n• ZEN CHANNELLER: Uses ZenQuestRemoteEvent",
     
     Callback = function(Value)
         SelectedZenMode = Value
@@ -1183,27 +1162,6 @@ ZenGroupBox:AddToggle("AutoSubmitZen", {
             -- Reset submitting flag
             isSubmittingZen = false
         end
-    end,
-})
-
--- Manual Zen submission button
-ZenGroupBox:AddButton("🧘 Submit TRANQUIL Now", {
-    Text = "Submit TRANQUIL Now",
-    Tooltip = "Manually submit all TRANQUIL plants from your backpack to the selected Zen system",
-    Callback = function()
-        print("[cb] Manual Zen submission triggered for mode:", SelectedZenMode)
-        
-        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            Library:Notify("❌ Character not ready! Try again in a moment.", 3)
-            return
-        end
-        
-        -- Run submission once
-        task.spawn(function()
-            performAutoSubmitZen()
-        end)
-        
-        Library:Notify("🧘 Submitting TRANQUIL plants to " .. SelectedZenMode .. "...", 2)
     end,
 })
 
