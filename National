@@ -604,32 +604,25 @@ MutationGroupBox:AddToggle("AutoSubmitPet", {
 -- ================================================================
 -- ZEN SYSTEM - AUTO COLLECT TRANQUIL PLANTS
 -- ================================================================
-local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘v2")
+local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘v3")
 
 -- Variables for Zen system
 local AutoCollectTranquilEnabled = false
 local autoCollectTranquilConnection = nil
 local isCollectingTranquil = false
 
--- Function to get my farm (borrowed from main file logic)
+-- Function to get my farm (exact from main file logic)
 local function getMyFarm()
     local success, result = pcall(function()
-        local workspace = Services.Workspace
-        local farmName = LocalPlayer.Name .. "'s Farm"
-        
-        -- Check if farm exists in workspace
-        local farm = workspace:FindFirstChild(farmName)
-        if farm then
-            return farm
-        end
-        
-        -- Fallback: look for any farm owned by the player
-        for _, obj in pairs(workspace:GetChildren()) do
-            if string.find(obj.Name, LocalPlayer.Name) and string.find(obj.Name, "Farm") then
-                return obj
+        for _, farm in workspace.Farm:GetChildren() do
+            local important = farm:FindFirstChild("Important")
+            if important then
+                local data = important:FindFirstChild("Data")
+                if data and data.Owner.Value == LocalPlayer.Name then
+                    return farm
+                end
             end
         end
-        
         return nil
     end)
     
