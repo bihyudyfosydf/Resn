@@ -641,19 +641,21 @@ local function getMyFarm()
     end
 end
 
--- Function to check if plant has TRANQUIL attribute
-local function hasTranquilAttribute(plant)
+-- Function to check if plant has TRANQUIL mutation (using proper mutation detection)
+local function hasTranquilMutation(plant)
     if not plant then return false end
     
-    -- Check for TRANQUIL attribute (boolean)
-    local tranquil = plant:GetAttribute("TRANQUIL")
-    if tranquil == true then
+    -- Check for TRANQUIL as StringValue object (primary method for mutations)
+    local tranquilObj = plant:FindFirstChild("TRANQUIL")
+    if tranquilObj and tranquilObj:IsA("StringValue") then
+        print("🧘 Found TRANQUIL mutation StringValue on", plant.Name)
         return true
     end
     
-    -- Also check for Tranquil string value
-    local tranquilObj = plant:FindFirstChild("TRANQUIL")
-    if tranquilObj and tranquilObj:IsA("StringValue") then
+    -- Fallback: Check for TRANQUIL as attribute (secondary method)
+    local tranquilAttr = plant:GetAttribute("TRANQUIL")
+    if tranquilAttr then
+        print("🧘 Found TRANQUIL mutation attribute on", plant.Name)
         return true
     end
     
@@ -700,9 +702,9 @@ local function harvestTranquilPlant(plant)
 
     print("🧘 ZEN HARVEST: Targeting", targetPlantName, "at", targetPlantPosition, "UID:", plantUID)
 
-    -- Verify plant has TRANQUIL attribute
-    if not hasTranquilAttribute(targetPlant) then
-        print("❌ Plant no longer has TRANQUIL attribute - ABORTING")
+    -- Verify plant has TRANQUIL mutation
+    if not hasTranquilMutation(targetPlant) then
+        print("❌ Plant no longer has TRANQUIL mutation - ABORTING")
         return false
     end
 
@@ -774,8 +776,8 @@ local function harvestTranquilPlant(plant)
                 error("Prompt disappeared during harvest attempt")
             end
 
-            if not hasTranquilAttribute(targetPlant) then
-                error("Plant lost TRANQUIL attribute during harvest attempt")
+            if not hasTranquilMutation(targetPlant) then
+                error("Plant lost TRANQUIL mutation during harvest attempt")
             end
 
             fireproximityprompt(currentPrompt)
@@ -854,9 +856,9 @@ local function getTranquilPlants()
             return {}
         end
         
-        -- Search through all plants for TRANQUIL attribute
+        -- Search through all plants for TRANQUIL mutation
         for _, plant in pairs(plantsPhysical:GetChildren()) do
-            if hasTranquilAttribute(plant) and canHarvestTranquilPlant(plant) then
+            if hasTranquilMutation(plant) and canHarvestTranquilPlant(plant) then
                 table.insert(tranquilPlants, plant)
                 print("🧘 Found TRANQUIL plant:", plant.Name)
             end
@@ -867,7 +869,7 @@ local function getTranquilPlants()
                         or plant:FindFirstChild("Fruit_Spawn")
             if fruits then
                 for _, fruit in pairs(fruits:GetChildren()) do
-                    if hasTranquilAttribute(fruit) and canHarvestTranquilPlant(fruit) then
+                    if hasTranquilMutation(fruit) and canHarvestTranquilPlant(fruit) then
                         table.insert(tranquilPlants, fruit)
                         print("🧘 Found TRANQUIL fruit:", fruit.Name, "from plant:", plant.Name)
                     end
@@ -954,9 +956,9 @@ local function collectAllTranquilPlants()
                 break
             end
             
-            -- Check if plant still exists and has TRANQUIL attribute
-            if not plant or not plant.Parent or not hasTranquilAttribute(plant) then
-                print("⚠️ TRANQUIL plant", i, "no longer exists or lost attribute, skipping...")
+            -- Check if plant still exists and has TRANQUIL mutation
+            if not plant or not plant.Parent or not hasTranquilMutation(plant) then
+                print("⚠️ TRANQUIL plant", i, "no longer exists or lost mutation, skipping...")
                 continue
             end
             
@@ -1002,7 +1004,7 @@ end
 -- Auto Collect TRANQUIL Plants toggle
 ZenGroupBox:AddToggle("AutoCollectTranquil", {
     Text = "Auto Collect TRANQUIL Plants",
-    Tooltip = "Automatically collect all plants and fruits with the TRANQUIL attribute in your farm",
+    Tooltip = "Automatically collect all plants and fruits with the TRANQUIL mutation in your farm",
     Default = false,
     Callback = function(Value)
         AutoCollectTranquilEnabled = Value
@@ -1072,6 +1074,117 @@ ZenGroupBox:AddButton("📊 Show TRANQUIL Plants", function()
         for i, plant in pairs(tranquilPlants) do
             print("  " .. i .. ". " .. plant.Name)
         end
+    end
+end)
+
+-- Debug button to scan all plants and show their mutations
+ZenGroupBox:AddButton("🔍 Debug: Scan All Plant Mutations", function()
+    local success, result = pcall(function()
+        print("🔍 DEBUG: Starting plant mutation scan...")
+        
+        local myFarm = getMyFarm()
+        if not myFarm then
+            print("❌ Could not find player's farm")
+            return
+        end
+        
+        -- Check if there's a nested Farm folder inside the main farm folder
+        local innerFarm = myFarm:FindFirstChild("Farm")
+        if innerFarm then
+            myFarm = innerFarm
+        end
+
+        local important = myFarm:FindFirstChild("Important")
+        if not important then
+            print("❌ Could not find Important folder in farm")
+            return
+        end
+        
+        local plantsPhysical = important:FindFirstChild("Plants_Physical")
+        if not plantsPhysical then
+            print("❌ Could not find Plants_Physical folder")
+            return
+        end
+        
+        print("🔍 Scanning all plants for mutations...")
+        local totalPlants = 0
+        local plantsWithMutations = 0
+        local tranquilCount = 0
+        
+        for _, plant in pairs(plantsPhysical:GetChildren()) do
+            totalPlants = totalPlants + 1
+            print("🔍 Plant:", plant.Name)
+            
+            -- Check for any StringValue children (mutations)
+            local hasMutations = false
+            for _, child in pairs(plant:GetChildren()) do
+                if child:IsA("StringValue") then
+                    print("  📜 StringValue mutation:", child.Name, "=", child.Value)
+                    hasMutations = true
+                    if child.Name == "TRANQUIL" then
+                        tranquilCount = tranquilCount + 1
+                        print("  🧘 FOUND TRANQUIL MUTATION!")
+                    end
+                end
+            end
+            
+            -- Check for attributes
+            local attributes = plant:GetAttributes()
+            for attrName, attrValue in pairs(attributes) do
+                print("  🏷️ Attribute:", attrName, "=", attrValue)
+                if attrName == "TRANQUIL" then
+                    tranquilCount = tranquilCount + 1
+                    print("  🧘 FOUND TRANQUIL ATTRIBUTE!")
+                end
+            end
+            
+            if hasMutations then
+                plantsWithMutations = plantsWithMutations + 1
+            end
+            
+            -- Also check fruits
+            local fruits = plant:FindFirstChild("Fruits") 
+                        or plant:FindFirstChild("Fruit")
+                        or plant:FindFirstChild("Fruit_Spawn")
+            if fruits then
+                print("  🍓 Checking fruits in:", plant.Name)
+                for _, fruit in pairs(fruits:GetChildren()) do
+                    print("    Fruit:", fruit.Name)
+                    for _, child in pairs(fruit:GetChildren()) do
+                        if child:IsA("StringValue") then
+                            print("      📜 Fruit StringValue mutation:", child.Name, "=", child.Value)
+                            if child.Name == "TRANQUIL" then
+                                tranquilCount = tranquilCount + 1
+                                print("      🧘 FOUND TRANQUIL MUTATION ON FRUIT!")
+                            end
+                        end
+                    end
+                    
+                    local fruitAttributes = fruit:GetAttributes()
+                    for attrName, attrValue in pairs(fruitAttributes) do
+                        print("      🏷️ Fruit Attribute:", attrName, "=", attrValue)
+                        if attrName == "TRANQUIL" then
+                            tranquilCount = tranquilCount + 1
+                            print("      🧘 FOUND TRANQUIL ATTRIBUTE ON FRUIT!")
+                        end
+                    end
+                end
+            end
+            
+            print("") -- Empty line for readability
+        end
+        
+        print("🔍 DEBUG SUMMARY:")
+        print("Total plants scanned:", totalPlants)
+        print("Plants with mutations:", plantsWithMutations)
+        print("TRANQUIL mutations/attributes found:", tranquilCount)
+        
+        Library:Notify("🔍 Debug scan complete! Found " .. tranquilCount .. " TRANQUIL mutations out of " .. totalPlants .. " plants. Check console for details.", 5)
+    end)
+    
+    if not success then
+        print("❌ Error in debug scan:", result)
+        Library:Notify("❌ Debug scan error: " .. tostring(result), 3)
     end
 end)
 
