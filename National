@@ -2409,20 +2409,416 @@ AutoUpgradeGroupBox:AddToggle("AutoGivePlants", {
     end,
 })
 
--- Manual buttons for testing
-AutoUpgradeGroupBox:AddDivider()
+-- ================================================================
+-- MUTATION SYSTEM
+-- ================================================================
+local MutationGroupBox = EventTab:AddRightGroupbox("Mutation 🧬")
 
-AutoUpgradeGroupBox:AddButton("⚡ Collect Tempestuous Now", function()
-    Library:Notify("⚡ Manually collecting Tempestuous plants...", 2)
-    task.spawn(function()
-        performAutoCollectTempestuous()
+-- Variables for Mutation system
+local AutoSubmitPetEnabled = false
+local autoSubmitPetConnection = nil
+local isSubmittingPets = false
+local SelectedPetsForMutation = {}
+
+-- Complete list of all non-dino pets from the game (excluding dino pets)
+local AllNonDinoPets = {
+    -- Basic Pets
+    "Dog",
+    "Golden Lab",
+    "Bunny",
+    "Black Bunny",
+    "Cat",
+    "Orange Tabby",
+    "Deer",
+    "Spotted Deer",
+    "Monkey",
+    "Silver Monkey",
+    "Chicken",
+    "Rooster",
+    "Pig",
+    "Turtle",
+    "Cow",
+
+    -- Rare & Mythical Pets
+    "Snail",
+    "Giant Ant",
+    "Dragonfly",
+    "Polar Bear",
+    "Panda",
+    "Sea Otter",
+    "Caterpillar",
+    "Praying Mantis",
+    "Hedgehog",
+    "Kiwi",
+    "Mole",
+    "Frog",
+    "Echo Frog",
+    "Owl",
+    "Night Owl",
+    "Raccoon",
+    "Grey Mouse",
+    "Squirrel",
+    "Brown Mouse",
+    "Red Giant Ant",
+    "Red Fox",
+
+    -- Event/Special Pets
+    "Chicken Zombie",
+    "Blood Hedgehog",
+    "Blood Kiwi",
+    "Blood Owl",
+    "Moon Cat",
+
+    -- Flying/Bee Pets
+    "Bee",
+    "Honey Bee",
+    "Petal Bee",
+    "Golden Bee",
+    "Bear Bee",
+    "Queen Bee",
+    "Wasp",
+    "Tarantula Hawk",
+    "Moth",
+    "Butterfly",
+    "Disco Bee",
+    "Pack Bee",
+
+    -- Other Flying Pets
+    "Firefly",
+    "Red Dragon",
+    "Cooked Owl",
+
+    -- Aquatic Pets
+    "Starfish",
+    "Crab",
+    "Seagull",
+    "Toucan",
+    "Flamingo",
+    "Sea Turtle",
+    "Seal",
+
+    -- Land Animals
+    "Orangutan",
+    "Peacock",
+    "Capybara",
+    "Scarlet Macaw",
+    "Ostrich",
+    "Mimic Octopus",
+    "Meerkat",
+    "Sand Snake",
+    "Axolotl",
+    "Hyacinth Macaw",
+    "Fennec Fox",
+    "Hamster",
+}
+
+-- Get the PetMutationMachineService remote
+local PetMutationMachineService_RE = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetMutationMachineService_RE")
+
+-- Function to check if a pet name matches any selected pets
+local function isPetSelected(petName)
+    if not SelectedPetsForMutation or not next(SelectedPetsForMutation) then
+        return false -- If no pets selected, don't submit any
+    end
+    
+    -- Check exact matches first
+    if SelectedPetsForMutation[petName] then
+        return true
+    end
+    
+    -- Check partial matches (in case pet names in inventory have prefixes/suffixes)
+    for selectedPet, isSelected in pairs(SelectedPetsForMutation) do
+        if isSelected then
+            if string.find(petName, selectedPet) or string.find(selectedPet, petName) then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Function to get selected pets in inventory with level 50 or above
+local function getSelectedEligiblePetsForMutation()
+    local eligiblePets = {}
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    
+    if not backpack then
+        return eligiblePets
+    end
+    
+    -- Check all tools in backpack for selected pets with age 50+
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            -- Check if it's a selected pet and has age 50+
+            local petAge = tool:GetAttribute("Age")
+            
+            if petAge and tonumber(petAge) and tonumber(petAge) >= 50 then
+                -- Check if this pet is in our selected list
+                if isPetSelected(tool.Name) then
+                    table.insert(eligiblePets, tool)
+                    print("🧬 Found selected eligible pet:", tool.Name, "- Age:", petAge)
+                end
+            elseif isPetSelected(tool.Name) then
+                print("🧬 Found selected pet but age too low:", tool.Name, "- Age:", petAge or "unknown")
+            end
+        end
+    end
+    
+    return eligiblePets
+end
+
+-- Function to equip a specific pet tool
+local function equipPet(petTool)
+    local success, result = pcall(function()
+        -- Make sure we have a character
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("Humanoid") then
+            return false
+        end
+        
+        -- Check if pet is still in backpack
+        if not petTool or not petTool.Parent or petTool.Parent ~= LocalPlayer.Backpack then
+            return false
+        end
+        
+        -- Equip the pet
+        LocalPlayer.Character.Humanoid:EquipTool(petTool)
+        print("🧬 Equipped pet:", petTool.Name)
+        
+        -- Wait a moment for the equip to register
+        task.wait(0.5)
+        
+        -- Verify pet is actually equipped
+        local equippedPet = LocalPlayer.Character:FindFirstChild(petTool.Name)
+        if equippedPet then
+            return true
+        else
+            return false
+        end
     end)
-end)
+    
+    if not success then
+        print("❌ Error equipping pet:", result)
+        return false
+    end
+    
+    return result
+end
 
-AutoUpgradeGroupBox:AddButton("🔧 Give Plants Now", function()
-    Library:Notify("🔧 Manually giving plants to machine...", 2)
-    performAutoGivePlants()
-end)
+-- Function to submit the currently held pet
+local function submitHeldPet()
+    local success, result = pcall(function()
+        if not PetMutationMachineService_RE then
+            print("❌ PetMutationMachineService_RE not found!")
+            return false
+        end
+        
+        -- Check if we have a pet equipped
+        local equippedPet = nil
+        if LocalPlayer.Character then
+            equippedPet = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+        end
+        
+        if not equippedPet then
+            print("📭 No pet equipped to submit")
+            return false
+        end
+        
+        -- Submit the held pet
+        PetMutationMachineService_RE:FireServer("SubmitHeldPet")
+        print("🧬 Submitted pet:", equippedPet.Name)
+        Library:Notify("🧬 Submitted pet: " .. equippedPet.Name, 2)
+        
+        return true
+    end)
+    
+    if not success then
+        print("❌ Error submitting pet:", result)
+        return false
+    end
+    
+    return result
+end
+
+-- Function to unequip current pet (move back to backpack)
+local function unequipCurrentPet()
+    local success, result = pcall(function()
+        if not LocalPlayer.Character then
+            return true
+        end
+        
+        local equippedPet = LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+        if equippedPet then
+            -- Move pet back to backpack
+            equippedPet.Parent = LocalPlayer.Backpack
+            print("🧬 Unequipped pet:", equippedPet.Name)
+            task.wait(0.3) -- Wait for unequip to register
+        end
+        
+        return true
+    end)
+    
+    return success and result
+end
+
+-- Main function to auto submit selected eligible pets
+local function performAutoSubmitSelectedPets()
+    if not AutoSubmitPetEnabled or isSubmittingPets then
+        return
+    end
+    
+    -- Check if any pets are selected
+    if not SelectedPetsForMutation or not next(SelectedPetsForMutation) then
+        local currentTime = tick()
+        if not _G.LastPetSelectionCheck or currentTime - _G.LastPetSelectionCheck > 30 then
+            print("📭 No pets selected for mutation")
+            _G.LastPetSelectionCheck = currentTime
+        end
+        return
+    end
+    
+    isSubmittingPets = true
+    
+    local success, result = pcall(function()
+        -- Get selected eligible pets (age 50+ and in selection)
+        local eligiblePets = getSelectedEligiblePetsForMutation()
+        
+        if #eligiblePets == 0 then
+            -- Only notify every 30 seconds to avoid spam
+            local currentTime = tick()
+            if not _G.LastSelectedPetMutationCheck or currentTime - _G.LastSelectedPetMutationCheck > 30 then
+                print("📭 No selected pets with age 50+ found for mutation")
+                _G.LastSelectedPetMutationCheck = currentTime
+            end
+            return false
+        end
+        
+        print("🧬 Found " .. #eligiblePets .. " selected eligible pets for mutation")
+        Library:Notify("🧬 Found " .. #eligiblePets .. " selected pets ready for mutation!", 2)
+        
+        local submittedCount = 0
+        
+        -- Process each eligible pet
+        for i, petTool in pairs(eligiblePets) do
+            if not AutoSubmitPetEnabled then
+                break
+            end
+            
+            print("🧬 Processing selected pet " .. i .. "/" .. #eligiblePets .. ":", petTool.Name)
+            
+            -- Unequip any currently equipped pet first
+            unequipCurrentPet()
+            task.wait(0.5)
+            
+            -- Equip the pet
+            local equipped = equipPet(petTool)
+            if equipped then
+                task.wait(0.5) -- Wait for equip to fully register
+                
+                -- Submit the pet
+                local submitted = submitHeldPet()
+                if submitted then
+                    submittedCount = submittedCount + 1
+                    task.wait(1) -- Wait between submissions
+                else
+                    print("❌ Failed to submit pet:", petTool.Name)
+                end
+            else
+                print("❌ Failed to equip pet:", petTool.Name)
+            end
+            
+            -- Small delay between pets
+            task.wait(0.5)
+        end
+        
+        if submittedCount > 0 then
+            Library:Notify("🧬 Successfully submitted " .. submittedCount .. " selected pets for mutation!", 3)
+        end
+        
+        return true
+    end)
+    
+    if not success then
+        print("❌ Error in auto submit selected pets:", result)
+    end
+    
+    isSubmittingPets = false
+end
+
+-- Pet Selection Dropdown
+MutationGroupBox:AddDropdown("MutationPetSelection", {
+    Values = AllNonDinoPets,
+    Default = {},
+    Multi = true,
+    Text = "Select Pets to Submit",
+    Tooltip = "Choose which pets to automatically submit for mutation when they reach age 50+",
+    
+    Callback = function(Value)
+        SelectedPetsForMutation = Value
+        
+        local selectedCount = 0
+        for _, selected in pairs(Value) do
+            if selected then selectedCount = selectedCount + 1 end
+        end
+        
+        if selectedCount > 0 then
+            Library:Notify("🧬 Selected " .. selectedCount .. " pets for mutation", 2)
+        else
+            Library:Notify("🧬 No pets selected for mutation", 2)
+        end
+        
+        print("[cb] Selected pets for mutation:", selectedCount)
+    end,
+})
+
+-- Auto Submit Pet toggle
+MutationGroupBox:AddToggle("AutoSubmitPet", {
+    Text = "Auto Submit Selected Pets",
+    Tooltip = "Automatically submit selected pets with age 50+ to mutation machine",
+    Default = false,
+    Callback = function(Value)
+        AutoSubmitPetEnabled = Value
+        print("[cb] Auto Submit Selected Pets toggled:", Value)
+        
+        if Value then
+            if not SelectedPetsForMutation or not next(SelectedPetsForMutation) then
+                Library:Notify("⚠️ Please select pets first using the dropdown above!", 4)
+                Toggles.AutoSubmitPet:SetValue(false)
+                return
+            end
+            
+            local selectedCount = 0
+            for _, selected in pairs(SelectedPetsForMutation) do
+                if selected then selectedCount = selectedCount + 1 end
+            end
+            
+            Library:Notify("🧬 Auto submit enabled for " .. selectedCount .. " selected pets (age 50+)!", 3)
+            
+            -- Start auto submit loop (check every 5 seconds)
+            autoSubmitPetConnection = task.spawn(function()
+                while AutoSubmitPetEnabled do
+                    performAutoSubmitSelectedPets()
+                    task.wait(5) -- Wait 5 seconds between checks
+                end
+            end)
+        else
+            Library:Notify("🧬 Auto submit selected pets disabled!", 3)
+            
+            -- Stop auto submit loop
+            if autoSubmitPetConnection then
+                task.cancel(autoSubmitPetConnection)
+                autoSubmitPetConnection = nil
+            end
+            
+            -- Reset submitting flag
+            isSubmittingPets = false
+        end
+    end,
+})
+
+MutationGroupBox:AddLabel("ℹ️ Only selected pets with Age 50+ will be submitted")
+MutationGroupBox:AddLabel("🔄 System checks inventory every 5 seconds")
+MutationGroupBox:AddLabel("⚠️ Select pets using dropdown before enabling!")
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
