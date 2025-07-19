@@ -1,323 +1,1116 @@
 -- ================================================================
--- MERCHANT TAB - Auto-Integration System
--- Created for arc.gg - Honey & Spray Merchant Tabbox
--- Auto-loads into main script when available
+-- RE:FACTOR AUTO MOVE SYSTEM
+-- Auto-integrates with main script when globals are available
 -- ================================================================
 
--- Wait for main script globals to be available
-local maxWaitTime = 30 -- Maximum wait time in seconds
-local waitStartTime = tick()
-
--- Wait for required globals
-while (not _G.MainScriptLoaded or not _G.Library or not _G.Window or not _G.Tabs) and (tick() - waitStartTime) < maxWaitTime do
-    task.wait(0.1)
+-- Wait for main script to be ready
+local function waitForMainScript()
+    local maxWait = 30 -- Maximum 30 seconds
+    local waited = 0
+    
+    while waited < maxWait do
+        -- Check multiple possible global locations
+        local Library = getgenv and getgenv().Library or _G.Library
+        local Window = getgenv and getgenv().Window or _G.Window
+        local Tabs = getgenv and getgenv().Tabs or _G.Tabs
+        local MainScriptLoaded = getgenv and getgenv().MainScriptLoaded or _G.MainScriptLoaded
+        
+        if Library and Window and Tabs and MainScriptLoaded then
+            print("✅ Auto Move: Main script globals found!")
+            return Library, Window, Tabs
+        end
+        
+        task.wait(0.5)
+        waited = waited + 0.5
+    end
+    
+    error("❌ Auto Move: Main script not ready after " .. maxWait .. " seconds")
 end
 
--- Check if globals are available
-if not _G.MainScriptLoaded or not _G.Library or not _G.Window or not _G.Tabs then
-    warn("❌ Merchant Tab: Main script globals not available after " .. maxWaitTime .. " seconds")
-    return
-end
+-- Get references to main script components
+local Library, Window, Tabs = waitForMainScript()
 
--- Get references from main script
-local Library = _G.Library
-local Window = _G.Window
-local Tabs = _G.Tabs
-
-print("🍯 Merchant Tab: Successfully connected to main script")
-
--- Services setup
+-- ================================================================
+-- SERVICES SETUP
+-- ================================================================
 local Services = {
+    Workspace = game:GetService("Workspace"),
     ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players")
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService"),
+    TweenService = game:GetService("TweenService")
 }
 
 local LocalPlayer = Services.Players.LocalPlayer
 
 -- ================================================================
--- HONEY & SPRAY MERCHANT TABBOX SYSTEM
+-- ADD AUTO MOVE GROUPBOX TO ESSENTIAL TAB
 -- ================================================================
-
--- Merchant Tabbox for Store Features
-local MerchantTabBox = Tabs.Store:AddLeftTabbox("Merchant Tabs")
-
--- Tab 1: Honey Merchant
-local HoneyMerchantTab = MerchantTabBox:AddTab("Honey Merchant")
-
--- Tab 2: Spray Merchant
-local SprayMerchantTab = MerchantTabBox:AddTab("Spray Merchant")
+local AutoMoveGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Move 🚀")
 
 -- ================================================================
--- HONEY MERCHANT TAB (Tab 1)
+-- PLANT MOVE SYSTEM
 -- ================================================================
 
--- Honey Merchant items list
-local honeyMerchantItems = {
-    "Flower Seed Pack",
-    "Honey Sprinkler",
+-- Variables for Plant Move System
+local PlantsToMove = {}
+local PlantsToMoveTo = {}
+local PlantMoveEnabled = false
+local MinMoveDistance = 20 -- Only move plants farther than this distance from target
+
+-- Complete list of all plants and fruits in the game (Updated from GrowableData.module.lua)
+local AllPlantsAndFruits = {
+    "Aloe Vera", "Amber Spine", "Apple", "Avocado", "Bamboo", "Banana", "Beanstalk", "Bee Balm", "Bell Pepper",
+    "Bendboo", "Blood Banana", "Blue Lollipop", "Blueberry", "Bone Blossom", "Boneboo", "Burning Bud", 
+    "Cacao", "Cactus", "Candy Blossom", "Candy Sunflower", "Cantaloupe", "Carrot", "Cauliflower", 
+    "Celestiberry", "Cherry Blossom", "Cherry OLD", "Chocolate Carrot", "Cocovine", "Coconut", "Corn", 
+    "Cranberry", "Crimson Vine", "Crocus", "Cursed Fruit", "Daffodil", "Dandelion", "Delphinium", 
+    "Dragon Fruit", "Dragon Pepper", "Dragon Sapling", "Durian", "Easter Egg", "Eggplant", "Elephant Ears", 
+    "Ember Lily", "Feijoa", "Firefly Fern", "Firework Flower", "Fossilight", "Foxglove", "Giant Pinecone", 
+    "Glowshroom", "Grand Volcania", "Grape", "Green Apple", "Guanabana", "Hinomai", "Hive Fruit", 
+    "Honeysuckle", "Horned Dinoshroom", "Horsetail", "Ice Cream Bean", "Kiwi", "Lavender", "Lemon", 
+    "Liberty Lily", "Lilac", "Lily of the Valley", "Lime", "Lingonberry", "Loquat", "Lotus", "Lumira", 
+    "Mango", "Manuka Flower", "Maple Apple", "Mega Mushroom", "Merica Mushroom", "Mint", "Monoblooma", 
+    "Moon Blossom", "Moon Mango", "Moon Melon", "Moonflower", "Moonglow", "Mushroom", "Nectarine", 
+    "Nectarshade", "Nightshade", "Noble Flower", "Orange Tulip", "Papaya", "Paradise Petal", 
+    "Parasol Flower", "Passionfruit", "Peace Lily", "Peach", "Pear", "Pepper", "Pineapple", "Pink Lily", 
+    "Pink Tulip", "Pitcher Plant", "Prickly Pear", "Pumpkin", "Purple Cabbage", "Purple Dahlia", 
+    "Rafflesia", "Raspberry", "Red Lollipop", "Rose", "Rosy Delight", "Serenity", "Soft Sunshine", 
+    "Soul Fruit", "Spiked Mango", "Starfruit", "Stonebite", "Strawberry", "Succulent", "Sugar Apple", 
+    "Suncoil", "Sunflower", "Taro Flower", "Tomato", "Traveler's Fruit", "Venus Fly Trap", "Violet Corn", 
+    "Watermelon", "White Mulberry", "Wild Carrot", "Zen Rocks", "Zenflare"
+}
+
+-- Plants to move FROM dropdown
+AutoMoveGroupBox:AddDropdown("PlantsToMove", {
+    Values = AllPlantsAndFruits,
+    Default = {},
+    Multi = true,
+    Text = "Plants Wanna Move",
+    Tooltip = "Select which plant types you want to move (ALL plants of selected types)",
+    Callback = function(Value)
+        PlantsToMove = Value
+        print("[cb] Plants to move updated:", Value)
+        
+        -- Show selected plants in notification
+        local selectedNames = {}
+        for plantName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, plantName)
+            end
+        end
+        
+        if #selectedNames > 0 then
+            print("🌱 Will move ALL:", table.concat(selectedNames, ", "))
+        else
+            print("🌱 No plants selected to move")
+        end
+    end,
+})
+
+-- Plants to move TO dropdown
+AutoMoveGroupBox:AddDropdown("PlantsToMoveTo", {
+    Values = AllPlantsAndFruits,
+    Default = {},
+    Multi = true,
+    Text = "Plants Wanna Move To",
+    Tooltip = "Select where you want to move the plants to",
+    Callback = function(Value)
+        PlantsToMoveTo = Value
+        print("[cb] Plants to move to updated:", Value)
+        
+        -- Show selected target plants in notification
+        local selectedNames = {}
+        for plantName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, plantName)
+            end
+        end
+        
+        if #selectedNames > 0 then
+            print("🎯 Moving to:", table.concat(selectedNames, ", "))
+        else
+            print("🎯 No target plants selected")
+        end
+    end,
+})
+
+-- Distance threshold slider
+AutoMoveGroupBox:AddSlider("MinMoveDistance", {
+    Text = "Min Distance to Move",
+    Tooltip = "Only move plants that are farther than this distance from target (blocks)",
+    Default = 20,
+    Min = 5,
+    Max = 50,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        MinMoveDistance = Value
+        print("[cb] Min move distance set to:", Value, "blocks")
+        Library:Notify("📏 Will only move plants " .. Value .. "+ blocks away from target", 2)
+    end,
+})
+
+-- ================================================================
+-- PLANT MOVE IMPLEMENTATION
+-- ================================================================
+
+-- Additional variables for plant moving
+local plantMoveConnection = nil
+local currentlyMovingPlants = {} -- Track plants currently being moved
+local movedPlants = {} -- Track plants that have already been moved
+local lastMoveTime = 0 -- Track time of last move to add delays
+
+-- Function to get player's farm (EXACT from REFACRORMAIN)
+local function getMyFarm()
+    for _, farm in workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data.Owner.Value == LocalPlayer.Name then
+                return farm
+            end
+        end
+    end
+    return nil
+end
+
+-- Function to find and equip trowel tool
+local function findAndEquipTrowel()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        return nil
+    end
+
+    -- Check if trowel is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") and string.find(equippedItem.Name, "Trowel") then
+                return equippedItem
+            end
+        end
+    end
+
+    -- Look for trowel in backpack
+    local trowelTool = nil
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") and string.find(item.Name, "Trowel") then
+            trowelTool = item
+            break
+        end
+    end
+
+    -- Equip the trowel tool
+    if trowelTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid:EquipTool(trowelTool)
+        task.wait(0.5)
+        return LocalPlayer.Character:FindFirstChild(trowelTool.Name)
+    end
+    
+    return nil
+end
+
+-- Function to find plants by name pattern
+local function findPlantsByName(plantName)
+    local myFarm = getMyFarm()
+    if not myFarm then
+        return {}
+    end
+
+    local important = myFarm:FindFirstChild("Important")
+    if not important then
+        return {}
+    end
+
+    local plantsPhysical = important:FindFirstChild("Plants_Physical")
+    if not plantsPhysical then
+        return {}
+    end
+
+    local foundPlants = {}
+    for _, plant in pairs(plantsPhysical:GetChildren()) do
+        if string.find(plant.Name:lower(), plantName:lower()) then
+            table.insert(foundPlants, plant)
+        end
+    end
+    
+    return foundPlants
+end
+
+-- Function to get target plant's position directly
+local function getTargetPlantPosition(targetPlantName)
+    -- Find target plants
+    local targetPlants = findPlantsByName(targetPlantName)
+    if #targetPlants == 0 then
+        return nil
+    end
+
+    -- Get the first target plant's position directly
+    local targetPlant = targetPlants[1]
+    return targetPlant:GetPivot().Position
+end
+
+-- Function to move a single plant
+local function movePlant(plantToMove, targetPlantName)
+    local plantId = tostring(plantToMove)
+    
+    -- Check if this specific plant is already being moved
+    if currentlyMovingPlants[plantId] then
+        return false
+    end
+    
+    -- Mark this plant as currently being moved
+    currentlyMovingPlants[plantId] = true
+    
+    local moveSuccess = false
+    
+    local success = pcall(function()
+        -- Find and equip trowel
+        local trowelTool = findAndEquipTrowel()
+        if not trowelTool then
+            print("❌ Need a Trowel tool in inventory!")
+            return
+        end
+
+        -- Get target plant position directly
+        local targetPosition = getTargetPlantPosition(targetPlantName)
+        if not targetPosition then
+            print("❌ Target plant not found:", targetPlantName)
+            return
+        end
+
+        -- Get the TrowelRemote
+        local TrowelRemote = Services.ReplicatedStorage.GameEvents:FindFirstChild("TrowelRemote")
+        if not TrowelRemote then
+            print("❌ TrowelRemote not found!")
+            return
+        end
+
+        -- Store original position for distance check
+        local originalPosition = plantToMove:GetPivot().Position
+
+        -- Step 1: Pickup the plant
+        print("🔧 Picking up plant:", plantToMove.Name)
+        local pickupSuccess = TrowelRemote:InvokeServer("Pickup", trowelTool, plantToMove)
+        
+        if pickupSuccess then
+            -- Wait for pickup to fully process (trowel system needs time)
+            task.wait(0.8) 
+            
+            -- Step 2: Place the plant directly at target plant's position
+            local placementCFrame = CFrame.new(
+                targetPosition.X + math.random(-4, 4), -- Slightly larger random offset
+                targetPosition.Y,
+                targetPosition.Z + math.random(-4, 4)  -- Slightly larger random offset
+            )
+            
+            print("🔧 Placing plant at target location:", placementCFrame.Position)
+            
+            -- Place the plant
+            TrowelRemote:InvokeServer("Place", trowelTool, plantToMove, placementCFrame)
+            
+            -- Wait for placement animation to complete (trowel system has 0.4s + animation time)
+            task.wait(1.2)
+            
+            -- Check if plant was successfully moved by comparing to original position
+            local newPosition = plantToMove:GetPivot().Position
+            local distanceMoved = (newPosition - originalPosition).Magnitude
+            local distanceToTarget = (newPosition - targetPosition).Magnitude
+            
+            -- If plant moved at least 5 blocks and is within 15 blocks of target, consider success
+            if distanceMoved >= 5 and distanceToTarget <= 15 then
+                print("✅ Plant moved successfully! Distance moved:", math.floor(distanceMoved), "blocks")
+                moveSuccess = true
+            else
+                print("❌ Plant may not have moved properly. Distance moved:", math.floor(distanceMoved), "blocks")
+            end
+        else
+            print("❌ Failed to pickup plant")
+        end
+    end)
+    
+    if not success then
+        print("❌ Error moving plant:", debug.traceback())
+    end
+    
+    -- Clear the moving flag for this specific plant
+    currentlyMovingPlants[plantId] = nil
+    return moveSuccess
+end
+
+-- Main plant moving function
+local function performPlantMove()
+    if not PlantMoveEnabled then 
+        return 
+    end
+    
+    -- Add delay between moves (trowel system needs time: 0.4s + animation = ~2 seconds minimum)
+    local currentTime = tick()
+    if currentTime - lastMoveTime < 2.5 then
+        return -- Not enough time has passed for next move
+    end
+    
+    -- Check if we have plants to move and targets
+    local hasToMove = false
+    local hasTargets = false
+    
+    for _, selected in pairs(PlantsToMove) do
+        if selected then hasToMove = true break end
+    end
+    
+    for _, selected in pairs(PlantsToMoveTo) do
+        if selected then hasTargets = true break end
+    end
+    
+    if not hasToMove or not hasTargets then
+        return
+    end
+    
+    -- Find target plant name first
+    local targetPlantName = nil
+    for targetName, isTargetSelected in pairs(PlantsToMoveTo) do
+        if isTargetSelected then
+            targetPlantName = targetName
+            break
+        end
+    end
+    
+    if not targetPlantName then
+        return
+    end
+    
+    -- Find the next plant to move from ANY selected type
+    local plantToMove = nil
+    local plantTypeName = nil
+    
+    -- Get target position once for distance checks
+    local targetPosition = getTargetPlantPosition(targetPlantName)
+    if not targetPosition then
+        print("❌ Target plant not found:", targetPlantName)
+        return
+    end
+    
+    for plantName, isSelected in pairs(PlantsToMove) do
+        if isSelected then
+            local plantsOfThisType = findPlantsByName(plantName)
+            
+            -- Look for an unmoved plant of this type that is FAR from target
+            for _, plant in pairs(plantsOfThisType) do
+                local plantId = tostring(plant)
+                if not movedPlants[plantId] and not currentlyMovingPlants[plantId] then
+                    -- Check if plant is already close to target
+                    local plantPosition = plant:GetPivot().Position
+                    local distanceToTarget = (plantPosition - targetPosition).Magnitude
+                    
+                    -- Only move plants that are far away (more than MinMoveDistance blocks from target)
+                    if distanceToTarget > MinMoveDistance then
+                        plantToMove = plant
+                        plantTypeName = plantName
+                        print("🔍 Found", plantName, "that's", math.floor(distanceToTarget), "blocks away from target (min:", MinMoveDistance .. ")")
+                        break
+                    else
+                        print("⏭️ Skipping", plantName, "- already close to target (", math.floor(distanceToTarget), "blocks, min:", MinMoveDistance .. ")")
+                        -- Mark as moved so we don't check it again
+                        movedPlants[plantId] = true
+                    end
+                end
+            end
+            
+            -- If we found a plant to move, break out of the type loop
+            if plantToMove then
+                break
+            end
+        end
+    end
+    
+    -- If we found a plant to move, move it
+    if plantToMove then
+        local plantId = tostring(plantToMove)
+        print("🌱 Moving", plantToMove.Name, "(" .. plantTypeName .. ") to", targetPlantName, "area")
+        
+        lastMoveTime = currentTime -- Update last move time BEFORE moving
+        
+        if movePlant(plantToMove, targetPlantName) then
+            -- Mark this plant as moved
+            movedPlants[plantId] = true
+            print("✅ Plant moved successfully - next plant in ~2.5 seconds...")
+        else
+            print("❌ Plant move failed - will try next plant in ~2.5 seconds...")
+        end
+    else
+        -- No more plants to move - check if we should reset
+        local totalUnmovedPlants = 0
+        for plantName, isSelected in pairs(PlantsToMove) do
+            if isSelected then
+                local plantsOfThisType = findPlantsByName(plantName)
+                for _, plant in pairs(plantsOfThisType) do
+                    local plantId = tostring(plant)
+                    if not movedPlants[plantId] then
+                        totalUnmovedPlants = totalUnmovedPlants + 1
+                    end
+                end
+            end
+        end
+        
+        if totalUnmovedPlants == 0 then
+            print("  All selected plants have been moved! Resetting tracker...")
+            -- Reset moved plants tracker to allow moving them again
+            movedPlants = {}
+        end
+    end
+end
+
+-- Plant Move toggle
+AutoMoveGroupBox:AddToggle("PlantMove", {
+    Text = "Auto Move Plants (One by One)",
+    Tooltip = "Continuously move ALL selected plant types to target locations one by one using trowel",
+    Default = false,
+    Callback = function(Value)
+        PlantMoveEnabled = Value
+        print("[cb] Plant Move toggled:", Value)
+        
+        if Value then
+            Library:Notify("🌱 Auto Plant Move enabled! Moving plants one by one...", 3)
+            
+            -- Clear moved plants tracker for fresh start
+            movedPlants = {}
+            currentlyMovingPlants = {}
+            lastMoveTime = 0 -- Reset timing
+            
+            -- Start plant move loop
+            plantMoveConnection = Services.RunService.Heartbeat:Connect(function()
+                performPlantMove()
+            end)
+        else
+            Library:Notify("🌱 Auto Plant Move disabled!", 3)
+            
+            -- Stop plant move loop
+            if plantMoveConnection then
+                plantMoveConnection:Disconnect()
+                plantMoveConnection = nil
+            end
+            
+            -- Clear all trackers
+            movedPlants = {}
+            currentlyMovingPlants = {}
+            lastMoveTime = 0
+        end
+    end,
+})
+
+-- Add reset button
+AutoMoveGroupBox:AddButton("Reset Move Tracker", function()
+    movedPlants = {}
+    currentlyMovingPlants = {}
+    lastMoveTime = 0
+    Library:Notify("🔄 Plant move tracker reset! All plants can be moved again.", 3)
+    print("🔄 Move tracker reset - all plants available for moving again")
+end)
+
+-- ================================================================
+-- AUTO PLACE TOOLS SYSTEM
+-- ================================================================
+
+-- Add Auto Place Tools GroupBox to Essential tab (LEFT side)
+local AutoPlaceToolsGroupBox = Tabs.Essential:AddLeftGroupbox("Auto Place Tools 🔧")
+
+-- Variables for Auto Place Tools system
+local ToolsToPlace = {}
+local AutoPlaceToolsEnabled = false
+local autoPlaceToolsConnection = nil
+local lastToolPlaceTime = 0
+local placedTools = {} -- Track tools that have been placed
+
+-- Complete list of all placeable tools in the game (excluding sprinklers)
+local AllPlaceableTools = {
+    "Lightning Rod",
+    "Tanning Mirror",
+    "Nectar Staff",
+    "Star Caller",
+    "Night Staff"
+}
+
+-- Tools to place dropdown
+AutoPlaceToolsGroupBox:AddDropdown("ToolsToPlace", {
+    Values = AllPlaceableTools,
+    Default = {},
+    Multi = true,
+    Text = "Tools Wanna Place",
+    Tooltip = "Select which tool types you want to automatically place on your farm",
+    Callback = function(Value)
+        ToolsToPlace = Value
+        print("[cb] Tools to place updated:", Value)
+        
+        -- Show selected tools in notification
+        local selectedNames = {}
+        for toolName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, toolName)
+            end
+        end
+        
+        if #selectedNames > 0 then
+            print("🔧 Will place:", table.concat(selectedNames, ", "))
+        else
+            print("🔧 No tools selected to place")
+        end
+    end,
+})
+
+-- Function to find tool in inventory
+local function findTool(toolName)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        return nil
+    end
+
+    -- Check if a tool is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                -- Remove quantity indicators like [X5] from name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item matches the tool name
+                if string.find(cleanName:lower(), toolName:lower()) then
+                    print("✅ Tool already equipped:", itemName)
+                    return equippedItem
+                end
+            end
+        end
+    end
+
+    -- Look for tool in backpack
+    local tool = nil
+    
+    -- First try exact match
+    tool = backpack:FindFirstChild(toolName)
+    if tool and tool:IsA("Tool") then
+        print("✅ Found exact tool match:", toolName)
+        return tool
+    end
+    
+    -- If no exact match, try partial matching
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name
+            -- Remove quantity indicators like [X5] from name
+            local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+            
+            -- Check if this item matches the tool name
+            if string.find(cleanName:lower(), toolName:lower()) then
+                tool = item
+                print("✅ Found tool partial match:", itemName)
+                break
+            end
+        end
+    end
+    
+    return tool
+end
+
+-- Function to equip a tool
+local function equipTool(toolName)
+    local tool = findTool(toolName)
+    
+    if tool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        -- Only equip if not already equipped
+        if tool.Parent == LocalPlayer.Backpack then
+            LocalPlayer.Character.Humanoid:EquipTool(tool)
+            task.wait(0.5) -- Wait for equip animation
+            print("🔧 Equipped tool:", tool.Name)
+            return LocalPlayer.Character:FindFirstChild(tool.Name)
+        else
+            -- Already equipped
+            return tool
+        end
+    end
+    
+    return nil
+end
+
+-- Function to place a tool on the farm
+local function placeTool(toolName)
+    -- Check if we have the tool in inventory and equip it
+    local equippedTool = equipTool(toolName)
+    if not equippedTool then
+        print("❌ Tool not found in inventory:", toolName)
+        return false
+    end
+
+    -- Get random position on farm
+    local placePosition = getRandomFarmPosition()
+    if not placePosition then
+        return false
+    end
+
+    -- Convert position to CFrame for placement
+    local placementCFrame = CFrame.new(placePosition.X, placePosition.Y, placePosition.Z)
+
+    -- Place the tool using the appropriate remote service
+    local success = pcall(function()
+        -- Determine which service to use based on tool type
+        if string.find(toolName:lower(), "lightning rod") then
+            -- Use LightningRodService
+            local LightningRodService = Services.ReplicatedStorage.GameEvents:FindFirstChild("LightningRodService")
+            if LightningRodService then
+                LightningRodService:FireServer("Create", placementCFrame)
+            else
+                error("LightningRodService not found")
+            end
+        elseif string.find(toolName:lower(), "tanning mirror") then
+            -- Use TanningMirrorService (assume similar pattern)
+            local TanningMirrorService = Services.ReplicatedStorage.GameEvents:FindFirstChild("TanningMirrorService")
+            if TanningMirrorService then
+                TanningMirrorService:FireServer("Create", placementCFrame)
+            else
+                error("TanningMirrorService not found")
+            end
+        elseif string.find(toolName:lower(), "nectar staff") then
+            -- Use NectarStaffService (assume similar pattern)
+            local NectarStaffService = Services.ReplicatedStorage.GameEvents:FindFirstChild("NectarStaffService")
+            if NectarStaffService then
+                NectarStaffService:FireServer("Create", placementCFrame)
+            else
+                error("NectarStaffService not found")
+            end
+        elseif string.find(toolName:lower(), "star caller") then
+            -- Use StarCallerService (assume similar pattern)
+            local StarCallerService = Services.ReplicatedStorage.GameEvents:FindFirstChild("StarCallerService")
+            if StarCallerService then
+                StarCallerService:FireServer("Create", placementCFrame)
+            else
+                error("StarCallerService not found")
+            end
+        elseif string.find(toolName:lower(), "night staff") then
+            -- Use NightStaffService (assume similar pattern)
+            local NightStaffService = Services.ReplicatedStorage.GameEvents:FindFirstChild("NightStaffService")
+            if NightStaffService then
+                NightStaffService:FireServer("Create", placementCFrame)
+            else
+                error("NightStaffService not found")
+            end
+        else
+            error("Unknown tool type: " .. toolName)
+        end
+    end)
+
+    if success then
+        print("🔧 Placed tool:", toolName, "at position:", placePosition)
+        Library:Notify("🔧 Placed " .. toolName .. " on farm!", 2)
+        return true
+    else
+        print("❌ Failed to place tool:", toolName)
+        return false
+    end
+end
+
+-- Main auto place tools function
+local function performAutoPlaceTools()
+    if not AutoPlaceToolsEnabled then 
+        return 
+    end
+    
+    -- Add delay between placements
+    local currentTime = tick()
+    if currentTime - lastToolPlaceTime < 3 then
+        return -- Not enough time has passed for next placement (3 seconds for tools)
+    end
+    
+    -- Check if we have tools selected
+    local hasToolsSelected = false
+    for _, selected in pairs(ToolsToPlace) do
+        if selected then hasToolsSelected = true break end
+    end
+    
+    if not hasToolsSelected then
+        return
+    end
+    
+    -- Find the next tool to place
+    local toolToPlace = nil
+    
+    for toolName, isSelected in pairs(ToolsToPlace) do
+        if isSelected then
+            local toolId = toolName .. "_" .. tostring(currentTime)
+            
+            -- Check if we have this tool in inventory
+            local tool = findTool(toolName)
+            if tool and not placedTools[toolId] then
+                toolToPlace = toolName
+                placedTools[toolId] = true
+                break
+            end
+        end
+    end
+    
+    -- If we found a tool to place, place it
+    if toolToPlace then
+        print("🔧 Placing tool:", toolToPlace)
+        
+        lastToolPlaceTime = currentTime -- Update last place time BEFORE placing
+        
+        if placeTool(toolToPlace) then
+            print("✅ Tool placed successfully - next tool in ~3 seconds...")
+        else
+            print("❌ Tool placement failed - will try next tool in ~3 seconds...")
+        end
+    else
+        -- No more tools to place or no tools in inventory
+        print("⏭️ No available tools to place in inventory")
+    end
+end
+
+-- Auto Place Tools toggle
+AutoPlaceToolsGroupBox:AddToggle("AutoPlaceTools", {
+    Text = "Auto Place Tools",
+    Tooltip = "Continuously place selected tool types on your farm when available in inventory",
+    Default = false,
+    Callback = function(Value)
+        AutoPlaceToolsEnabled = Value
+        print("[cb] Auto Place Tools toggled:", Value)
+        
+        if Value then
+            Library:Notify("🔧 Auto Place Tools enabled! Placing tools from inventory...", 3)
+            
+            -- Clear placed tools tracker for fresh start
+            placedTools = {}
+            lastToolPlaceTime = 0 -- Reset timing
+            
+            -- Start auto place tools loop
+            autoPlaceToolsConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoPlaceTools()
+            end)
+        else
+            Library:Notify("🔧 Auto Place Tools disabled!", 3)
+            
+            -- Stop auto place tools loop
+            if autoPlaceToolsConnection then
+                autoPlaceToolsConnection:Disconnect()
+                autoPlaceToolsConnection = nil
+            end
+            
+            -- Clear trackers
+            placedTools = {}
+            lastToolPlaceTime = 0
+        end
+    end,
+})
+
+-- ================================================================
+-- AUTO PLACE EGG SYSTEM
+-- ================================================================
+
+-- Add Auto Place Egg GroupBox to Essential tab
+local AutoPlaceEggGroupBox = Tabs.Essential:AddRightGroupbox("Auto Place Egg 🥚")
+
+-- Variables for Auto Place Egg system
+local EggsToPlace = {}
+local AutoPlaceEggEnabled = false
+local autoPlaceEggConnection = nil
+local lastEggPlaceTime = 0
+local placedEggs = {} -- Track eggs that have been placed
+
+-- Complete list of all pet eggs in the game
+local AllPetEggs = {
+    "Common Egg",
+    "Uncommon Egg", 
+    "Rare Egg",
+    "Legendary Egg",
+    "Mythical Egg",
+    "Bug Egg",
+    "Exotic Bug Egg",
+    "Night Egg",
     "Bee Egg",
-    "Bee Crate",
-    "Honey Crafters Crate"
+    "Anti Bee Egg",
+    "Premium Anti Bee Egg",
+    "Premium Night Egg",
+    "Common Summer Egg",
+    "Rare Summer Egg",
+    "Paradise Egg",
+    "Oasis Egg",
+    "Premium Oasis Egg",
+    "Dinosaur Egg",
+    "Fake Egg"
 }
 
--- Initialize honey merchant variables
-local honeyMerchantSelectedItems = {}
-local honeyMerchantAutoBuyEnabled = false
-
--- Get the honey merchant buy remote
-local BuyTravelingMerchantShopStock = Services.ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyTravelingMerchantShopStock")
-
--- Add honey merchant functionality to Tab 1
-HoneyMerchantTab:AddLabel("🍯 Honey Merchant Auto Buy System")
-HoneyMerchantTab:AddDivider()
-
--- Dropdown for honey merchant item selection
-HoneyMerchantTab:AddDropdown("HoneyMerchantItemSelection", {
-    Values = honeyMerchantItems,
-    Default = 1,
-    Multi = true, -- Allow multiple selections
-    Text = "Select Honey Merchant Items",
-    Tooltip = "Choose which honey merchant items to auto buy",
+-- Eggs to place dropdown
+AutoPlaceEggGroupBox:AddDropdown("EggsToPlace", {
+    Values = AllPetEggs,
+    Default = {},
+    Multi = true,
+    Text = "Eggs Wanna Place",
+    Tooltip = "Select which egg types you want to automatically place on your farm",
     Callback = function(Value)
-        print("[cb] Selected honey merchant items for auto buy changed:")
-        honeyMerchantSelectedItems = Value
-        for item, selected in next, _G.Library.Options.HoneyMerchantItemSelection.Value do
-            print(item, selected)
+        EggsToPlace = Value
+        print("[cb] Eggs to place updated:", Value)
+        
+        -- Show selected eggs in notification
+        local selectedNames = {}
+        for eggName, isSelected in pairs(Value) do
+            if isSelected then
+                table.insert(selectedNames, eggName)
+            end
         end
-    end
+        
+        if #selectedNames > 0 then
+            print("🥚 Will place:", table.concat(selectedNames, ", "))
+        else
+            print("🥚 No eggs selected to place")
+        end
+    end,
 })
 
--- Function to buy honey merchant items using the provided remote
-local function buyHoneyMerchantItems()
-    if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
-        print("❌ No honey merchant items selected for purchase")
-        return
+-- Function to find egg tool in inventory
+local function findEggTool(eggName)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then 
+        return nil
     end
 
-    for itemName, isSelected in pairs(honeyMerchantSelectedItems) do
-        if isSelected and honeyMerchantAutoBuyEnabled then
-            local success, err = pcall(function()
-                BuyTravelingMerchantShopStock:FireServer(itemName)
-            end)
-
-            if success then
-                print("✅ Successfully bought:", itemName)
-            else
-                print("❌ Failed to buy:", itemName, "Error:", err)
+    -- Check if an egg tool is already equipped
+    if LocalPlayer.Character then
+        for _, equippedItem in pairs(LocalPlayer.Character:GetChildren()) do
+            if equippedItem:IsA("Tool") then
+                local itemName = equippedItem.Name
+                -- Remove quantity indicators like [X5] from name
+                local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+                
+                -- Check if the equipped item matches the egg name
+                if string.find(cleanName:lower(), eggName:lower()) then
+                    print("✅ Egg already equipped:", itemName)
+                    return equippedItem
+                end
             end
-
-            task.wait(0.1) -- Small delay between purchases
         end
+    end
+
+    -- Look for egg in backpack
+    local eggTool = nil
+    
+    -- First try exact match
+    eggTool = backpack:FindFirstChild(eggName)
+    if eggTool and eggTool:IsA("Tool") then
+        print("✅ Found exact egg match:", eggName)
+        return eggTool
+    end
+    
+    -- If no exact match, try partial matching
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name
+            -- Remove quantity indicators like [X5] from name
+            local cleanName = string.gsub(itemName, "%s*%[X%d+%]", "")
+            
+            -- Check if this item matches the egg name
+            if string.find(cleanName:lower(), eggName:lower()) then
+                eggTool = item
+                print("✅ Found egg partial match:", itemName)
+                break
+            end
+        end
+    end
+    
+    return eggTool
+end
+
+-- Function to equip an egg tool
+local function equipEggTool(eggName)
+    local eggTool = findEggTool(eggName)
+    
+    if eggTool and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        -- Only equip if not already equipped
+        if eggTool.Parent == LocalPlayer.Backpack then
+            LocalPlayer.Character.Humanoid:EquipTool(eggTool)
+            task.wait(0.5) -- Wait for equip animation
+            print("🥚 Equipped egg:", eggTool.Name)
+            return LocalPlayer.Character:FindFirstChild(eggTool.Name)
+        else
+            -- Already equipped
+            return eggTool
+        end
+    end
+    
+    return nil
+end
+
+-- Function to get random position on player's farm (Enhanced from REFACRORMAIN)
+local function getRandomFarmPosition()
+    local myFarm = getMyFarm()
+    if not myFarm then
+        print("❌ Player farm not found!")
+        return nil
+    end
+
+    print("✅ Found player farm:", myFarm.Name)
+    
+    -- Try to find Can_Plant parts for more accurate positioning (like in REFACRORMAIN)
+    local canPlantParts = {}
+    for _, child in pairs(myFarm:GetDescendants()) do
+        if child.Name == "Can_Plant" and child:IsA("BasePart") then
+            table.insert(canPlantParts, child)
+        end
+    end
+
+    if #canPlantParts > 0 then
+        -- Use Can_Plant parts for accurate positioning
+        local selectedPart = canPlantParts[math.random(1, #canPlantParts)]
+        local size = selectedPart.Size
+        local position = selectedPart.Position
+        local randomX = position.X + math.random(-size.X / 2, size.X / 2)
+        local randomZ = position.Z + math.random(-size.Z / 2, size.Z / 2)
+        local finalPosition = Vector3.new(randomX, position.Y, randomZ)
+        print("🎯 Using Can_Plant position:", finalPosition)
+        return finalPosition
+    else
+        -- Fallback to farm center method
+        local farmCenter = myFarm:GetPivot().Position
+        local randomX = farmCenter.X + math.random(-20, 20)
+        local randomZ = farmCenter.Z + math.random(-20, 20)
+        local randomY = farmCenter.Y
+        local finalPosition = Vector3.new(randomX, randomY, randomZ)
+        print("🎯 Using farm center position:", finalPosition)
+        return finalPosition
     end
 end
 
--- Auto Buy Honey Merchant Items Toggle
-HoneyMerchantTab:AddToggle("AutoBuyHoneyMerchant", {
-    Text = "Auto Buy Honey Merchant Items",
-    Default = false,
-    Tooltip = "Automatically buy selected honey merchant items continuously until disabled",
-    Callback = function(Value)
-        honeyMerchantAutoBuyEnabled = Value
-        if Value then
-            -- Check if items are selected
-            if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
-                Library:Notify("⚠️ Please select honey merchant items first!", 3)
-                _G.Library.Toggles.AutoBuyHoneyMerchant:SetValue(false)
-                return
-            end
-
-            local selectedCount = 0
-            for _, selected in pairs(honeyMerchantSelectedItems) do
-                if selected then selectedCount = selectedCount + 1 end
-            end
-
-            Library:Notify("🍯 Auto Buy Honey Merchant enabled! Will buy " .. selectedCount .. " selected items continuously.", 3)
-
-            -- Start auto buy loop
-            task.spawn(function()
-                while honeyMerchantAutoBuyEnabled do
-                    buyHoneyMerchantItems()
-                    task.wait(0.5) -- Fixed 0.5s interval for honey merchant
-                end
-            end)
-        else
-            Library:Notify("🍯 Auto Buy Honey Merchant disabled!", 3)
-        end
-    end
-})
-
--- Manual buy button
-HoneyMerchantTab:AddButton("🍯 Buy Selected Items Now", function()
-    if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
-        Library:Notify("⚠️ Please select honey merchant items first!", 3)
-        return
-    end
-    buyHoneyMerchantItems()
-end)
-
--- Select All Honey Merchant Items button
-HoneyMerchantTab:AddButton("Select All Honey Merchant Items", function()
-    -- Select all items in the dropdown
-    local allSelected = {}
-    for _, item in pairs(honeyMerchantItems) do
-        allSelected[item] = true
+-- Function to place an egg on the farm
+local function placeEgg(eggName)
+    -- Check if we have the egg in inventory and equip it
+    local equippedEggTool = equipEggTool(eggName)
+    if not equippedEggTool then
+        print("❌ Egg not found in inventory:", eggName)
+        return false
     end
 
-    if _G.Library.Options.HoneyMerchantItemSelection then
-        _G.Library.Options.HoneyMerchantItemSelection:SetValue(allSelected)
+    -- Get the PetEggService remote event
+    local PetEggService = Services.ReplicatedStorage.GameEvents:FindFirstChild("PetEggService")
+    if not PetEggService then
+        print("❌ PetEggService not found!")
+        return false
     end
 
-    Library:Notify("✅ Selected all honey merchant items", 2)
-end)
-
--- Clear All Selections button
-HoneyMerchantTab:AddButton("Clear All Selections", function()
-    if _G.Library.Options.HoneyMerchantItemSelection then
-        _G.Library.Options.HoneyMerchantItemSelection:SetValue({})
+    -- Get random position on farm
+    local placePosition = getRandomFarmPosition()
+    if not placePosition then
+        return false
     end
 
-    Library:Notify("🗑️ Cleared all honey merchant item selections", 2)
-end)
+    -- Place the egg using the remote service
+    local success = pcall(function()
+        PetEggService:FireServer("CreateEgg", placePosition)
+    end)
 
--- ================================================================
--- SPRAY MERCHANT TAB (Tab 2)
--- ================================================================
-
--- Spray Merchant items list - Updated July 2025 from SprayMerchantShopData.module.lua
-local sprayMerchantItems = {
-    -- From SprayMerchantShopData (Traveling Spray Merchant)
-    "Mutation Spray Wet",
-    "Mutation Spray Windstruck", 
-    "Mutation Spray Verdant",
-    "Mutation Spray Disco",
-    -- From Sky Merchant (also has spray items)
-    "Mutation Spray Cloudtouched",
-    -- From GearData (craftable/other sources but still mutation sprays)
-    "Cleaning Spray",
-    "Mutation Spray Choc",
-    "Mutation Spray Pollinated",
-    "Mutation Spray Shocked",
-    "Mutation Spray Chilled",
-    "Mutation Spray Burnt",
-    "Mutation Spray Amber"
-}
-
--- Initialize spray merchant variables
-local sprayMerchantSelectedItems = {}
-local sprayMerchantAutoBuyEnabled = false
-
--- Add spray merchant functionality to Tab 2
-SprayMerchantTab:AddLabel("🧪 Spray Merchant Auto Buy System")
-SprayMerchantTab:AddDivider()
-
--- Dropdown for spray merchant item selection
-SprayMerchantTab:AddDropdown("SprayMerchantItemSelection", {
-    Values = sprayMerchantItems,
-    Default = 1,
-    Multi = true, -- Allow multiple selections
-    Text = "Select Spray Merchant Items",
-    Tooltip = "Choose which spray merchant items to auto buy - Updated with ALL mutation sprays from game files!",
-    Callback = function(Value)
-        print("[cb] Selected spray merchant items for auto buy changed:")
-        sprayMerchantSelectedItems = Value
-        for item, selected in next, _G.Library.Options.SprayMerchantItemSelection.Value do
-            print(item, selected)
-        end
-    end
-})
-
--- Function to buy spray merchant items using the provided remote
-local function buySprayMerchantItems()
-    if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
-        print("❌ No spray merchant items selected for purchase")
-        return
-    end
-
-    for itemName, isSelected in pairs(sprayMerchantSelectedItems) do
-        if isSelected and sprayMerchantAutoBuyEnabled then
-            local success, err = pcall(function()
-                BuyTravelingMerchantShopStock:FireServer(itemName)
-            end)
-
-            if success then
-                print("✅ Successfully bought:", itemName)
-            else
-                print("❌ Failed to buy:", itemName, "Error:", err)
-            end
-
-            task.wait(0.1) -- Small delay between purchases
-        end
+    if success then
+        print("🥚 Placed egg:", eggName, "at position:", placePosition)
+        Library:Notify("🥚 Placed " .. eggName .. " on farm!", 2)
+        return true
+    else
+        print("❌ Failed to place egg:", eggName)
+        return false
     end
 end
 
--- Auto Buy Spray Merchant Items Toggle
-SprayMerchantTab:AddToggle("AutoBuySprayMerchant", {
-    Text = "Auto Buy Spray Merchant Items",
-    Default = false,
-    Tooltip = "Automatically buy selected spray merchant items continuously until disabled",
-    Callback = function(Value)
-        sprayMerchantAutoBuyEnabled = Value
-        if Value then
-            -- Check if items are selected
-            if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
-                Library:Notify("⚠️ Please select spray merchant items first!", 3)
-                _G.Library.Toggles.AutoBuySprayMerchant:SetValue(false)
-                return
-            end
-
-            local selectedCount = 0
-            for _, selected in pairs(sprayMerchantSelectedItems) do
-                if selected then selectedCount = selectedCount + 1 end
-            end
-
-            Library:Notify("🧪 Auto Buy Spray Merchant enabled! Will buy " .. selectedCount .. " selected items continuously.", 3)
-
-            -- Start auto buy loop
-            task.spawn(function()
-                while sprayMerchantAutoBuyEnabled do
-                    buySprayMerchantItems()
-                    task.wait(0.5) -- Fixed 0.5s interval for spray merchant
-                end
-            end)
-        else
-            Library:Notify("🧪 Auto Buy Spray Merchant disabled!", 3)
-        end
+-- Main auto place egg function
+local function performAutoPlaceEgg()
+    if not AutoPlaceEggEnabled then 
+        return 
     end
-})
-
--- Manual buy button
-SprayMerchantTab:AddButton("🧪 Buy Selected Items Now", function()
-    if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
-        Library:Notify("⚠️ Please select spray merchant items first!", 3)
+    
+    -- Add delay between placements
+    local currentTime = tick()
+    if currentTime - lastEggPlaceTime < 2 then
+        return -- Not enough time has passed for next placement
+    end
+    
+    -- Check if we have eggs selected
+    local hasEggsSelected = false
+    for _, selected in pairs(EggsToPlace) do
+        if selected then hasEggsSelected = true break end
+    end
+    
+    if not hasEggsSelected then
         return
     end
-    buySprayMerchantItems()
-end)
-
--- Select All Spray Merchant Items button
-SprayMerchantTab:AddButton("Select All Spray Merchant Items", function()
-    -- Select all items in the dropdown
-    local allSelected = {}
-    for _, item in pairs(sprayMerchantItems) do
-        allSelected[item] = true
+    
+    -- Find the next egg to place
+    local eggToPlace = nil
+    
+    for eggName, isSelected in pairs(EggsToPlace) do
+        if isSelected then
+            local eggId = eggName .. "_" .. tostring(currentTime)
+            
+            -- Check if we have this egg in inventory
+            local eggTool = findEggTool(eggName)
+            if eggTool and not placedEggs[eggId] then
+                eggToPlace = eggName
+                placedEggs[eggId] = true
+                break
+            end
+        end
     end
-
-    if _G.Library.Options.SprayMerchantItemSelection then
-        _G.Library.Options.SprayMerchantItemSelection:SetValue(allSelected)
+    
+    -- If we found an egg to place, place it
+    if eggToPlace then
+        print("🥚 Placing egg:", eggToPlace)
+        
+        lastEggPlaceTime = currentTime -- Update last place time BEFORE placing
+        
+        if placeEgg(eggToPlace) then
+            print("✅ Egg placed successfully - next egg in ~2 seconds...")
+        else
+            print("❌ Egg placement failed - will try next egg in ~2 seconds...")
+        end
+    else
+        -- No more eggs to place or no eggs in inventory
+        print("⏭️ No available eggs to place in inventory")
     end
+end
 
-    Library:Notify("✅ Selected all spray merchant items", 2)
-end)
+-- Auto Place Egg toggle
+AutoPlaceEggGroupBox:AddToggle("AutoPlaceEgg", {
+    Text = "Auto Place Eggs",
+    Tooltip = "Continuously place selected egg types on your farm when available in inventory",
+    Default = false,
+    Callback = function(Value)
+        AutoPlaceEggEnabled = Value
+        print("[cb] Auto Place Egg toggled:", Value)
+        
+        if Value then
+            Library:Notify("🥚 Auto Place Egg enabled! Placing eggs from inventory...", 3)
+            
+            -- Clear placed eggs tracker for fresh start
+            placedEggs = {}
+            lastEggPlaceTime = 0 -- Reset timing
+            
+            -- Start auto place egg loop
+            autoPlaceEggConnection = Services.RunService.Heartbeat:Connect(function()
+                performAutoPlaceEgg()
+            end)
+        else
+            Library:Notify("🥚 Auto Place Egg disabled!", 3)
+            
+            -- Stop auto place egg loop
+            if autoPlaceEggConnection then
+                autoPlaceEggConnection:Disconnect()
+                autoPlaceEggConnection = nil
+            end
+            
+            -- Clear trackers
+            placedEggs = {}
+            lastEggPlaceTime = 0
+        end
+    end,
+})
 
--- Clear All Selections button
-SprayMerchantTab:AddButton("Clear All Selections", function()
-    if _G.Library.Options.SprayMerchantItemSelection then
-        _G.Library.Options.SprayMerchantItemSelection:SetValue({})
-    end
 
-    Library:Notify("🗑️ Cleared all spray merchant item selections", 2)
-end)
 
--- Success notification
-Library:Notify("🍯🧪 Merchant Tab loaded successfully! Honey & Spray merchants ready.", 3)
-print("🍯 Merchant Tab: Loaded successfully with Honey & Spray merchant systems")
+-- ================================================================
+-- AUTO MOVE INITIALIZATION COMPLETE
+-- ================================================================
+print("🚀 Auto Move system integrated with Essential tab!")
+Library:Notify("🚀 Auto Move loaded!", 3)
+
+-- Return success indicator
+return true 
