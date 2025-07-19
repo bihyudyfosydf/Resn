@@ -602,53 +602,41 @@ MutationGroupBox:AddToggle("AutoSubmitPet", {
 })
 
 -- ================================================================
--- ZEN SYSTEM - AUTO COLLECT TRANQUIL PLANTS
+-- ZEN SYSTEM
 -- ================================================================
-local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘v3")
+local ZenGroupBox = EventTab:AddRightGroupbox("Zen 🧘")
 
 -- Variables for Zen system
 local AutoCollectTranquilEnabled = false
 local autoCollectTranquilConnection = nil
 local isCollectingTranquil = false
 
--- Function to get my farm (exact from main file logic)
+-- Function to get player's farm (copied from Main script)
 local function getMyFarm()
-    local success, result = pcall(function()
-        for _, farm in workspace.Farm:GetChildren() do
-            local important = farm:FindFirstChild("Important")
-            if important then
-                local data = important:FindFirstChild("Data")
-                if data and data.Owner.Value == LocalPlayer.Name then
-                    return farm
-                end
+    for _, farm in Services.Workspace.Farm:GetChildren() do
+        local important = farm:FindFirstChild("Important")
+        if important then
+            local data = important:FindFirstChild("Data")
+            if data and data.Owner.Value == LocalPlayer.Name then
+                return farm
             end
         end
-        return nil
-    end)
-    
-    if success then
-        return result
-    else
-        print("❌ Error getting farm:", result)
-        return nil
     end
+    return nil
 end
 
--- Function to check if plant has TRANQUIL mutation (using proper mutation detection)
+-- Function to check if a plant has TRANQUIL mutation
 local function hasTranquilMutation(plant)
     if not plant then return false end
     
-    -- Check for TRANQUIL as StringValue object (primary method for mutations)
-    local tranquilObj = plant:FindFirstChild("TRANQUIL")
+    -- Check for TRANQUIL mutation as StringValue object
+    local tranquilObj = plant:FindFirstChild("Tranquil")
     if tranquilObj and tranquilObj:IsA("StringValue") then
-        print("🧘 Found TRANQUIL mutation StringValue on", plant.Name)
         return true
     end
     
-    -- Fallback: Check for TRANQUIL as attribute (secondary method)
-    local tranquilAttr = plant:GetAttribute("TRANQUIL")
-    if tranquilAttr then
-        print("🧘 Found TRANQUIL mutation attribute on", plant.Name)
+    -- Check for TRANQUIL mutation as attribute
+    if plant:GetAttribute("Tranquil") then
         return true
     end
     
@@ -656,288 +644,139 @@ local function hasTranquilMutation(plant)
 end
 
 -- Function to check if plant can be harvested
-local function canHarvestTranquilPlant(plant)
+local function canHarvestPlant(plant)
+    if not plant or not plant.Parent then
+        return false
+    end
+    
+    -- Check for proximity prompt (indicates harvestable)
     local prompt = plant:FindFirstChild("ProximityPrompt", true)
-    if not prompt then
+    if not prompt or not prompt.Enabled then
         return false
     end
-    if not prompt.Enabled then
-        return false
-    end
+    
     return true
 end
 
--- Function to harvest a tranquil plant (based on main file's HarvestPlant function)
+-- Function to harvest a specific plant
 local function harvestTranquilPlant(plant)
     if not plant or not plant.Parent then
-        print("❌ Plant object invalid or already removed")
         return false
     end
-
+    
     local prompt = plant:FindFirstChild("ProximityPrompt", true)
     if not prompt then
-        print("❌ No ProximityPrompt found on plant")
         return false
     end
-
-    -- Ensure we have a character and root part
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        print("❌ Character not ready for harvest")
-        return false
-    end
-
-    -- Store plant identification data
-    local targetPlant = plant
-    local targetPlantName = plant.Name
-    local targetPlantParent = plant.Parent
-    local targetPlantPosition = plant:GetPivot().Position
-    local plantUID = tostring(plant)
-
-    print("🧘 ZEN HARVEST: Targeting", targetPlantName, "at", targetPlantPosition, "UID:", plantUID)
-
-    -- Verify plant has TRANQUIL mutation
-    if not hasTranquilMutation(targetPlant) then
-        print("❌ Plant no longer has TRANQUIL mutation - ABORTING")
-        return false
-    end
-
-    -- Get optimal position near the plant
-    local plantPosition = plant:GetPivot().Position
-    local optimalPosition = plantPosition + Vector3.new(0, 2, 0)
-
-    -- Enable noclip for teleportation
-    local function enableNoclip()
-        if LocalPlayer.Character then
-            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                    if part.Name ~= "HumanoidRootPart" then
-                        part.Massless = true
-                    end
-                end
-            end
-        end
-    end
-
-    enableNoclip()
-
-    -- Teleport to optimal position for collection
-    print("🚀 ZEN: Teleporting to", optimalPosition)
-    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(optimalPosition)
-    task.wait(0.5)
-
-    -- Verify plant still exists after teleport
-    if not targetPlant or not targetPlant.Parent or targetPlant.Parent ~= targetPlantParent then
-        print("❌ Target plant disappeared or moved after teleport - ABORTING")
-        return false
-    end
-
-    -- Get even closer to ensure proximity trigger
-    local closePosition = plantPosition + Vector3.new(0, 0.5, 0)
-    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(closePosition)
-    task.wait(0.3)
-
-    -- Verify distance to target plant is reasonable
-    local currentDistance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPlantPosition).Magnitude
-    if currentDistance > 8 then
-        print("❌ Too far from target plant after positioning! Distance:", currentDistance)
-        return false
-    end
-
-    -- Check if prompt is still enabled after positioning
-    if not prompt.Enabled then
-        print("❌ ProximityPrompt disabled after positioning")
-        return false
-    end
-
-    -- Try fireproximityprompt multiple times for better reliability
-    local success = false
-    local maxAttempts = 3
-
-    for attempt = 1, maxAttempts do
-        -- Re-verify target before each attempt
-        if not targetPlant or not targetPlant.Parent then
-            print("❌ Target plant no longer exists at attempt", attempt)
-            break
-        end
-
-        print("🔄 ZEN: Harvest attempt", attempt, "on", targetPlantName)
-
-        local attemptSuccess = pcall(function()
-            local currentPrompt = targetPlant:FindFirstChild("ProximityPrompt", true)
-            if not currentPrompt then
-                error("Prompt disappeared during harvest attempt")
-            end
-
-            if not hasTranquilMutation(targetPlant) then
-                error("Plant lost TRANQUIL mutation during harvest attempt")
-            end
-
-            fireproximityprompt(currentPrompt)
-        end)
-
-        if attemptSuccess then
-            task.wait(0.3)
-
-            -- Check if the plant still exists (successful collection removes it)
-            if not targetPlant.Parent then
-                success = true
-                print("✅ ZEN: Successfully harvested TRANQUIL plant:", targetPlantName)
-                break
-            end
-        else
-            print("⚠️ ZEN: Attempt", attempt, "failed safety checks for", targetPlantName)
-        end
-
-        -- If not successful and not the last attempt, try repositioning
-        if not success and attempt < maxAttempts then
-            if targetPlant and targetPlant.Parent and targetPlant.Name == targetPlantName then
-                local retryPosition = plantPosition + Vector3.new(0.2, 0.3, 0.2)
-                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(retryPosition)
-                task.wait(0.2)
-            else
-                print("❌ Target invalid for repositioning, stopping attempts")
-                break
-            end
-        end
-    end
-
-    -- Final check
-    if not targetPlant.Parent then
-        success = true
-        print("✅ ZEN: Confirmed successful harvest of TRANQUIL plant:", targetPlantName)
-    else
-        print("❌ ZEN: Failed to harvest TRANQUIL plant:", targetPlantName, "after", maxAttempts, "attempts")
-    end
-
-    return success
-end
-
--- Function to get all TRANQUIL plants in farm
-local function getTranquilPlants()
-    local tranquilPlants = {}
     
+    -- Teleport to plant position
+    local plantPosition = plant:GetPivot().Position
+    local optimalPosition = plantPosition + Vector3.new(0, 1, 0)
+    
+    -- Teleport to plant
+    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(optimalPosition)
+    task.wait(0.5) -- Wait for teleport to register
+    
+    -- Fire proximity prompt to harvest
     local success, result = pcall(function()
-        local myFarm = getMyFarm()
-        if not myFarm then
-            print("❌ Could not find player's farm")
-            return {}
-        end
-        
-        -- Check if there's a nested Farm folder inside the main farm folder
-        local innerFarm = myFarm:FindFirstChild("Farm")
-        if innerFarm then
-            myFarm = innerFarm
-        end
-
-        local important = myFarm:FindFirstChild("Important")
-        if not important then
-            print("❌ Could not find Important folder in farm")
-            return {}
-        end
-        
-        -- Verify this is actually our farm by checking owner
-        local data = important:FindFirstChild("Data")
-        if not data or not data:FindFirstChild("Owner") or data.Owner.Value ~= LocalPlayer.Name then
-            print("❌ Farm ownership verification failed")
-            return {}
-        end
-        
-        local plantsPhysical = important:FindFirstChild("Plants_Physical")
-        if not plantsPhysical then
-            print("❌ Could not find Plants_Physical folder")
-            return {}
-        end
-        
-        -- Search through all plants for TRANQUIL mutation
-        for _, plant in pairs(plantsPhysical:GetChildren()) do
-            if hasTranquilMutation(plant) and canHarvestTranquilPlant(plant) then
-                table.insert(tranquilPlants, plant)
-                print("🧘 Found TRANQUIL plant:", plant.Name)
-            end
-            
-            -- Also check fruits inside plants
-            local fruits = plant:FindFirstChild("Fruits") 
-                        or plant:FindFirstChild("Fruit")
-                        or plant:FindFirstChild("Fruit_Spawn")
-            if fruits then
-                for _, fruit in pairs(fruits:GetChildren()) do
-                    if hasTranquilMutation(fruit) and canHarvestTranquilPlant(fruit) then
-                        table.insert(tranquilPlants, fruit)
-                        print("🧘 Found TRANQUIL fruit:", fruit.Name, "from plant:", plant.Name)
-                    end
-                end
-            end
-        end
-        
-        return tranquilPlants
+        fireproximityprompt(prompt)
     end)
     
     if success then
-        return result
+        print("🧘 Harvested TRANQUIL plant:", plant.Name)
+        Library:Notify("🧘 Harvested TRANQUIL: " .. plant.Name, 2)
+        return true
     else
-        print("❌ Error getting TRANQUIL plants:", result)
-        return {}
+        print("❌ Failed to harvest TRANQUIL plant:", plant.Name, result)
+        return false
     end
 end
 
--- Function to restore character physics
-local function restoreCharacterPhysics()
-    pcall(function()
-        if LocalPlayer.Character then
-            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    if part.Name ~= "HumanoidRootPart" then
-                        part.CanCollide = true
-                        part.Massless = false
-                    end
+-- Function to get all TRANQUIL plants on farm
+local function getTranquilPlantsOnFarm()
+    local tranquilPlants = {}
+    
+    local myFarm = getMyFarm()
+    if not myFarm then
+        return tranquilPlants
+    end
+    
+    -- Check if there's a nested Farm folder inside the main farm folder
+    local innerFarm = myFarm:FindFirstChild("Farm")
+    if innerFarm then
+        myFarm = innerFarm
+    end
+    
+    local important = myFarm:FindFirstChild("Important")
+    if not important then
+        return tranquilPlants
+    end
+    
+    -- Double-check this is actually our farm by verifying owner
+    local data = important:FindFirstChild("Data")
+    if not data or not data:FindFirstChild("Owner") or data.Owner.Value ~= LocalPlayer.Name then
+        return tranquilPlants
+    end
+    
+    local plantsPhysical = important:FindFirstChild("Plants_Physical")
+    if not plantsPhysical then
+        return tranquilPlants
+    end
+    
+    -- Search through all plants for TRANQUIL mutation
+    for _, plant in pairs(plantsPhysical:GetChildren()) do
+        if canHarvestPlant(plant) and hasTranquilMutation(plant) then
+            table.insert(tranquilPlants, plant)
+            print("🧘 Found TRANQUIL plant:", plant.Name)
+        end
+        
+        -- Also check fruits within plants
+        local fruits = plant:FindFirstChild("Fruits") or plant:FindFirstChild("Fruit") or plant:FindFirstChild("Fruit_Spawn")
+        if fruits then
+            for _, fruit in pairs(fruits:GetChildren()) do
+                if canHarvestPlant(fruit) and hasTranquilMutation(fruit) then
+                    table.insert(tranquilPlants, fruit)
+                    print("🧘 Found TRANQUIL fruit:", fruit.Name, "from plant:", plant.Name)
                 end
             end
-            
-            local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.PlatformStand = false
-            end
         end
-    end)
+    end
+    
+    return tranquilPlants
 end
 
--- Main function to collect all TRANQUIL plants
-local function collectAllTranquilPlants()
+-- Main auto collect TRANQUIL function
+local function performAutoCollectTranquil()
     if not AutoCollectTranquilEnabled or isCollectingTranquil then
+        return
+    end
+    
+    -- Check if character exists
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         return
     end
     
     isCollectingTranquil = true
     
     local success, result = pcall(function()
-        print("🧘 ZEN: Starting TRANQUIL plant collection...")
-        
-        -- Check if character exists
-        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            print("❌ Character not ready!")
-            return
-        end
-        
-        -- Get all TRANQUIL plants
-        local tranquilPlants = getTranquilPlants()
+        local tranquilPlants = getTranquilPlantsOnFarm()
         
         if #tranquilPlants == 0 then
+            -- Only notify every 30 seconds to avoid spam
             local currentTime = tick()
             if not _G.LastTranquilCheck or currentTime - _G.LastTranquilCheck > 30 then
-                print("📭 No TRANQUIL plants found to collect")
-                Library:Notify("🧘 No TRANQUIL plants found to collect", 2)
+                print("🧘 No TRANQUIL plants found on farm")
                 _G.LastTranquilCheck = currentTime
             end
             return
         end
         
-        print("🧘 Found", #tranquilPlants, "TRANQUIL plants to collect")
-        Library:Notify("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants! Starting collection...", 3)
+        print("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants to collect")
+        Library:Notify("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants!", 2)
         
         local harvestedCount = 0
         
-        -- Process each TRANQUIL plant
+        -- Collect each TRANQUIL plant
         for i, plant in pairs(tranquilPlants) do
             if not AutoCollectTranquilEnabled then
                 break
@@ -945,50 +784,26 @@ local function collectAllTranquilPlants()
             
             -- Check if character still exists
             if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                print("❌ Character was lost during collection! Stopping...")
                 break
             end
             
-            -- Check if plant still exists and has TRANQUIL mutation
-            if not plant or not plant.Parent or not hasTranquilMutation(plant) then
-                print("⚠️ TRANQUIL plant", i, "no longer exists or lost mutation, skipping...")
-                continue
+            -- Verify plant still exists and has TRANQUIL mutation
+            if plant and plant.Parent and hasTranquilMutation(plant) then
+                local success = harvestTranquilPlant(plant)
+                if success then
+                    harvestedCount = harvestedCount + 1
+                    task.wait(0.5) -- Small delay between harvests
+                end
             end
-            
-            print("🧘 Processing TRANQUIL plant", i, "of", #tranquilPlants .. ":", plant.Name)
-            
-            -- Harvest the TRANQUIL plant
-            local harvestSuccess = harvestTranquilPlant(plant)
-            
-            if harvestSuccess then
-                harvestedCount = harvestedCount + 1
-                Library:Notify("✅ Collected TRANQUIL " .. plant.Name, 1)
-                print("✅ Successfully collected TRANQUIL plant:", plant.Name)
-            else
-                print("❌ Failed to collect TRANQUIL plant:", plant.Name)
-            end
-            
-            -- Small delay between collections
-            task.wait(0.2)
         end
-        
-        -- Restore physics after collection
-        restoreCharacterPhysics()
-        
-        print("🧘 ZEN: TRANQUIL collection completed!")
-        print("Collected", harvestedCount, "out of", #tranquilPlants, "TRANQUIL plants")
         
         if harvestedCount > 0 then
-            Library:Notify("🧘 Collected " .. harvestedCount .. " TRANQUIL plants successfully!", 3)
+            Library:Notify("🧘 Successfully collected " .. harvestedCount .. " TRANQUIL plants!", 3)
         end
-        
-        return true
     end)
     
     if not success then
-        print("❌ Error in TRANQUIL plant collection:", result)
-        Library:Notify("❌ TRANQUIL collection error: " .. tostring(result), 3)
-        restoreCharacterPhysics()
+        print("❌ Error in auto collect TRANQUIL:", result)
     end
     
     isCollectingTranquil = false
@@ -996,25 +811,25 @@ end
 
 -- Auto Collect TRANQUIL Plants toggle
 ZenGroupBox:AddToggle("AutoCollectTranquil", {
-    Text = "Auto Collect TRANQUIL Plants",
-    Tooltip = "Automatically collect all plants and fruits with the TRANQUIL mutation in your farm",
+    Text = "Auto Collect Plants with TRANQUIL",
+    Tooltip = "Automatically collect plants and fruits with TRANQUIL mutation on your farm",
     Default = false,
     Callback = function(Value)
         AutoCollectTranquilEnabled = Value
-        print("[cb] Auto Collect TRANQUIL Plants toggled:", Value)
+        print("[cb] Auto Collect TRANQUIL toggled:", Value)
         
         if Value then
-            Library:Notify("🧘 Auto collect TRANQUIL plants enabled!", 3)
+            Library:Notify("🧘 Auto Collect TRANQUIL enabled!", 3)
             
             -- Start auto collect loop (check every 3 seconds)
             autoCollectTranquilConnection = task.spawn(function()
                 while AutoCollectTranquilEnabled do
-                    collectAllTranquilPlants()
-                    task.wait(3) -- Wait 3 seconds between collection cycles
+                    performAutoCollectTranquil()
+                    task.wait(3) -- Wait 3 seconds between checks
                 end
             end)
         else
-            Library:Notify("🧘 Auto collect TRANQUIL plants disabled!", 3)
+            Library:Notify("🧘 Auto Collect TRANQUIL disabled!", 3)
             
             -- Stop auto collect loop
             if autoCollectTranquilConnection then
@@ -1024,162 +839,30 @@ ZenGroupBox:AddToggle("AutoCollectTranquil", {
             
             -- Reset collecting flag
             isCollectingTranquil = false
-            
-            -- Restore physics
-            restoreCharacterPhysics()
         end
     end,
 })
 
--- Manual collect button
-ZenGroupBox:AddButton("🧘 Collect TRANQUIL Plants Now", function()
-    if isCollectingTranquil then
-        Library:Notify("⚠️ TRANQUIL collection already in progress!", 2)
-        return
-    end
-    
-    collectAllTranquilPlants()
-end)
-
--- Show TRANQUIL Plants button
-ZenGroupBox:AddButton("📊 Show TRANQUIL Plants", function()
-    local tranquilPlants = getTranquilPlants()
-    
-    if #tranquilPlants == 0 then
-        Library:Notify("📭 No TRANQUIL plants found in farm", 3)
-    else
-        local plantNames = {}
-        for _, plant in pairs(tranquilPlants) do
-            table.insert(plantNames, plant.Name)
-        end
+-- Manual TRANQUIL collection button
+ZenGroupBox:AddButton("🧘 Collect TRANQUIL Now", {
+    Text = "Collect TRANQUIL Now",
+    Tooltip = "Manually collect all TRANQUIL plants on your farm right now",
+    Callback = function()
+        print("[cb] Manual TRANQUIL collection triggered")
         
-        local uniquePlants = {}
-        local seen = {}
-        for _, name in pairs(plantNames) do
-            if not seen[name] then
-                seen[name] = true
-                table.insert(uniquePlants, name)
-            end
-        end
-        
-        Library:Notify("🧘 Found " .. #tranquilPlants .. " TRANQUIL plants: " .. table.concat(uniquePlants, ", "), 5)
-        print("🧘 TRANQUIL plants found:")
-        for i, plant in pairs(tranquilPlants) do
-            print("  " .. i .. ". " .. plant.Name)
-        end
-    end
-end)
-
--- Debug button to scan all plants and show their mutations
-ZenGroupBox:AddButton("🔍 Debug: Scan All Plant Mutations", function()
-    local success, result = pcall(function()
-        print("🔍 DEBUG: Starting plant mutation scan...")
-        
-        local myFarm = getMyFarm()
-        if not myFarm then
-            print("❌ Could not find player's farm")
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            Library:Notify("❌ Character not ready! Try again in a moment.", 3)
             return
         end
         
-        -- Check if there's a nested Farm folder inside the main farm folder
-        local innerFarm = myFarm:FindFirstChild("Farm")
-        if innerFarm then
-            myFarm = innerFarm
-        end
-
-        local important = myFarm:FindFirstChild("Important")
-        if not important then
-            print("❌ Could not find Important folder in farm")
-            return
-        end
+        -- Run collection once
+        task.spawn(function()
+            performAutoCollectTranquil()
+        end)
         
-        local plantsPhysical = important:FindFirstChild("Plants_Physical")
-        if not plantsPhysical then
-            print("❌ Could not find Plants_Physical folder")
-            return
-        end
-        
-        print("🔍 Scanning all plants for mutations...")
-        local totalPlants = 0
-        local plantsWithMutations = 0
-        local tranquilCount = 0
-        
-        for _, plant in pairs(plantsPhysical:GetChildren()) do
-            totalPlants = totalPlants + 1
-            print("🔍 Plant:", plant.Name)
-            
-            -- Check for any StringValue children (mutations)
-            local hasMutations = false
-            for _, child in pairs(plant:GetChildren()) do
-                if child:IsA("StringValue") then
-                    print("  📜 StringValue mutation:", child.Name, "=", child.Value)
-                    hasMutations = true
-                    if child.Name == "TRANQUIL" then
-                        tranquilCount = tranquilCount + 1
-                        print("  🧘 FOUND TRANQUIL MUTATION!")
-                    end
-                end
-            end
-            
-            -- Check for attributes
-            local attributes = plant:GetAttributes()
-            for attrName, attrValue in pairs(attributes) do
-                print("  🏷️ Attribute:", attrName, "=", attrValue)
-                if attrName == "TRANQUIL" then
-                    tranquilCount = tranquilCount + 1
-                    print("  🧘 FOUND TRANQUIL ATTRIBUTE!")
-                end
-            end
-            
-            if hasMutations then
-                plantsWithMutations = plantsWithMutations + 1
-            end
-            
-            -- Also check fruits
-            local fruits = plant:FindFirstChild("Fruits") 
-                        or plant:FindFirstChild("Fruit")
-                        or plant:FindFirstChild("Fruit_Spawn")
-            if fruits then
-                print("  🍓 Checking fruits in:", plant.Name)
-                for _, fruit in pairs(fruits:GetChildren()) do
-                    print("    Fruit:", fruit.Name)
-                    for _, child in pairs(fruit:GetChildren()) do
-                        if child:IsA("StringValue") then
-                            print("      📜 Fruit StringValue mutation:", child.Name, "=", child.Value)
-                            if child.Name == "TRANQUIL" then
-                                tranquilCount = tranquilCount + 1
-                                print("      🧘 FOUND TRANQUIL MUTATION ON FRUIT!")
-                            end
-                        end
-                    end
-                    
-                    local fruitAttributes = fruit:GetAttributes()
-                    for attrName, attrValue in pairs(fruitAttributes) do
-                        print("      🏷️ Fruit Attribute:", attrName, "=", attrValue)
-                        if attrName == "TRANQUIL" then
-                            tranquilCount = tranquilCount + 1
-                            print("      🧘 FOUND TRANQUIL ATTRIBUTE ON FRUIT!")
-                        end
-                    end
-                end
-            end
-            
-            print("") -- Empty line for readability
-        end
-        
-        print("🔍 DEBUG SUMMARY:")
-        print("Total plants scanned:", totalPlants)
-        print("Plants with mutations:", plantsWithMutations)
-        print("TRANQUIL mutations/attributes found:", tranquilCount)
-        
-        Library:Notify("🔍 Debug scan complete! Found " .. tranquilCount .. " TRANQUIL mutations out of " .. totalPlants .. " plants. Check console for details.", 5)
-    end)
-    
-    if not success then
-        print("❌ Error in debug scan:", result)
-        Library:Notify("❌ Debug scan error: " .. tostring(result), 3)
-    end
-end)
+        Library:Notify("🧘 Collecting TRANQUIL plants...", 2)
+    end,
+})
 
 -- ================================================================
 -- EVENT TAB INITIALIZATION COMPLETE
