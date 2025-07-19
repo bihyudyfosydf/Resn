@@ -1,1 +1,323 @@
+-- ================================================================
+-- MERCHANT TAB - Auto-Integration System
+-- Created for arc.gg - Honey & Spray Merchant Tabbox
+-- Auto-loads into main script when available
+-- ================================================================
 
+-- Wait for main script globals to be available
+local maxWaitTime = 30 -- Maximum wait time in seconds
+local waitStartTime = tick()
+
+-- Wait for required globals
+while (not _G.MainScriptLoaded or not _G.Library or not _G.Window or not _G.Tabs) and (tick() - waitStartTime) < maxWaitTime do
+    task.wait(0.1)
+end
+
+-- Check if globals are available
+if not _G.MainScriptLoaded or not _G.Library or not _G.Window or not _G.Tabs then
+    warn("❌ Merchant Tab: Main script globals not available after " .. maxWaitTime .. " seconds")
+    return
+end
+
+-- Get references from main script
+local Library = _G.Library
+local Window = _G.Window
+local Tabs = _G.Tabs
+
+print("🍯 Merchant Tab: Successfully connected to main script")
+
+-- Services setup
+local Services = {
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Players = game:GetService("Players")
+}
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+-- ================================================================
+-- HONEY & SPRAY MERCHANT TABBOX SYSTEM
+-- ================================================================
+
+-- Merchant Tabbox for Store Features
+local MerchantTabBox = Tabs.Store:AddLeftTabbox("Merchant Tabs")
+
+-- Tab 1: Honey Merchant
+local HoneyMerchantTab = MerchantTabBox:AddTab("Honey Merchant")
+
+-- Tab 2: Spray Merchant
+local SprayMerchantTab = MerchantTabBox:AddTab("Spray Merchant")
+
+-- ================================================================
+-- HONEY MERCHANT TAB (Tab 1)
+-- ================================================================
+
+-- Honey Merchant items list
+local honeyMerchantItems = {
+    "Flower Seed Pack",
+    "Honey Sprinkler",
+    "Bee Egg",
+    "Bee Crate",
+    "Honey Crafters Crate"
+}
+
+-- Initialize honey merchant variables
+local honeyMerchantSelectedItems = {}
+local honeyMerchantAutoBuyEnabled = false
+
+-- Get the honey merchant buy remote
+local BuyTravelingMerchantShopStock = Services.ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyTravelingMerchantShopStock")
+
+-- Add honey merchant functionality to Tab 1
+HoneyMerchantTab:AddLabel("🍯 Honey Merchant Auto Buy System")
+HoneyMerchantTab:AddDivider()
+
+-- Dropdown for honey merchant item selection
+HoneyMerchantTab:AddDropdown("HoneyMerchantItemSelection", {
+    Values = honeyMerchantItems,
+    Default = 1,
+    Multi = true, -- Allow multiple selections
+    Text = "Select Honey Merchant Items",
+    Tooltip = "Choose which honey merchant items to auto buy",
+    Callback = function(Value)
+        print("[cb] Selected honey merchant items for auto buy changed:")
+        honeyMerchantSelectedItems = Value
+        for item, selected in next, _G.Library.Options.HoneyMerchantItemSelection.Value do
+            print(item, selected)
+        end
+    end
+})
+
+-- Function to buy honey merchant items using the provided remote
+local function buyHoneyMerchantItems()
+    if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
+        print("❌ No honey merchant items selected for purchase")
+        return
+    end
+
+    for itemName, isSelected in pairs(honeyMerchantSelectedItems) do
+        if isSelected and honeyMerchantAutoBuyEnabled then
+            local success, err = pcall(function()
+                BuyTravelingMerchantShopStock:FireServer(itemName)
+            end)
+
+            if success then
+                print("✅ Successfully bought:", itemName)
+            else
+                print("❌ Failed to buy:", itemName, "Error:", err)
+            end
+
+            task.wait(0.1) -- Small delay between purchases
+        end
+    end
+end
+
+-- Auto Buy Honey Merchant Items Toggle
+HoneyMerchantTab:AddToggle("AutoBuyHoneyMerchant", {
+    Text = "Auto Buy Honey Merchant Items",
+    Default = false,
+    Tooltip = "Automatically buy selected honey merchant items continuously until disabled",
+    Callback = function(Value)
+        honeyMerchantAutoBuyEnabled = Value
+        if Value then
+            -- Check if items are selected
+            if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
+                Library:Notify("⚠️ Please select honey merchant items first!", 3)
+                _G.Library.Toggles.AutoBuyHoneyMerchant:SetValue(false)
+                return
+            end
+
+            local selectedCount = 0
+            for _, selected in pairs(honeyMerchantSelectedItems) do
+                if selected then selectedCount = selectedCount + 1 end
+            end
+
+            Library:Notify("🍯 Auto Buy Honey Merchant enabled! Will buy " .. selectedCount .. " selected items continuously.", 3)
+
+            -- Start auto buy loop
+            task.spawn(function()
+                while honeyMerchantAutoBuyEnabled do
+                    buyHoneyMerchantItems()
+                    task.wait(0.5) -- Fixed 0.5s interval for honey merchant
+                end
+            end)
+        else
+            Library:Notify("🍯 Auto Buy Honey Merchant disabled!", 3)
+        end
+    end
+})
+
+-- Manual buy button
+HoneyMerchantTab:AddButton("🍯 Buy Selected Items Now", function()
+    if not honeyMerchantSelectedItems or not next(honeyMerchantSelectedItems) then
+        Library:Notify("⚠️ Please select honey merchant items first!", 3)
+        return
+    end
+    buyHoneyMerchantItems()
+end)
+
+-- Select All Honey Merchant Items button
+HoneyMerchantTab:AddButton("Select All Honey Merchant Items", function()
+    -- Select all items in the dropdown
+    local allSelected = {}
+    for _, item in pairs(honeyMerchantItems) do
+        allSelected[item] = true
+    end
+
+    if _G.Library.Options.HoneyMerchantItemSelection then
+        _G.Library.Options.HoneyMerchantItemSelection:SetValue(allSelected)
+    end
+
+    Library:Notify("✅ Selected all honey merchant items", 2)
+end)
+
+-- Clear All Selections button
+HoneyMerchantTab:AddButton("Clear All Selections", function()
+    if _G.Library.Options.HoneyMerchantItemSelection then
+        _G.Library.Options.HoneyMerchantItemSelection:SetValue({})
+    end
+
+    Library:Notify("🗑️ Cleared all honey merchant item selections", 2)
+end)
+
+-- ================================================================
+-- SPRAY MERCHANT TAB (Tab 2)
+-- ================================================================
+
+-- Spray Merchant items list - Updated July 2025 from SprayMerchantShopData.module.lua
+local sprayMerchantItems = {
+    -- From SprayMerchantShopData (Traveling Spray Merchant)
+    "Mutation Spray Wet",
+    "Mutation Spray Windstruck", 
+    "Mutation Spray Verdant",
+    "Mutation Spray Disco",
+    -- From Sky Merchant (also has spray items)
+    "Mutation Spray Cloudtouched",
+    -- From GearData (craftable/other sources but still mutation sprays)
+    "Cleaning Spray",
+    "Mutation Spray Choc",
+    "Mutation Spray Pollinated",
+    "Mutation Spray Shocked",
+    "Mutation Spray Chilled",
+    "Mutation Spray Burnt",
+    "Mutation Spray Amber"
+}
+
+-- Initialize spray merchant variables
+local sprayMerchantSelectedItems = {}
+local sprayMerchantAutoBuyEnabled = false
+
+-- Add spray merchant functionality to Tab 2
+SprayMerchantTab:AddLabel("🧪 Spray Merchant Auto Buy System")
+SprayMerchantTab:AddDivider()
+
+-- Dropdown for spray merchant item selection
+SprayMerchantTab:AddDropdown("SprayMerchantItemSelection", {
+    Values = sprayMerchantItems,
+    Default = 1,
+    Multi = true, -- Allow multiple selections
+    Text = "Select Spray Merchant Items",
+    Tooltip = "Choose which spray merchant items to auto buy - Updated with ALL mutation sprays from game files!",
+    Callback = function(Value)
+        print("[cb] Selected spray merchant items for auto buy changed:")
+        sprayMerchantSelectedItems = Value
+        for item, selected in next, _G.Library.Options.SprayMerchantItemSelection.Value do
+            print(item, selected)
+        end
+    end
+})
+
+-- Function to buy spray merchant items using the provided remote
+local function buySprayMerchantItems()
+    if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
+        print("❌ No spray merchant items selected for purchase")
+        return
+    end
+
+    for itemName, isSelected in pairs(sprayMerchantSelectedItems) do
+        if isSelected and sprayMerchantAutoBuyEnabled then
+            local success, err = pcall(function()
+                BuyTravelingMerchantShopStock:FireServer(itemName)
+            end)
+
+            if success then
+                print("✅ Successfully bought:", itemName)
+            else
+                print("❌ Failed to buy:", itemName, "Error:", err)
+            end
+
+            task.wait(0.1) -- Small delay between purchases
+        end
+    end
+end
+
+-- Auto Buy Spray Merchant Items Toggle
+SprayMerchantTab:AddToggle("AutoBuySprayMerchant", {
+    Text = "Auto Buy Spray Merchant Items",
+    Default = false,
+    Tooltip = "Automatically buy selected spray merchant items continuously until disabled",
+    Callback = function(Value)
+        sprayMerchantAutoBuyEnabled = Value
+        if Value then
+            -- Check if items are selected
+            if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
+                Library:Notify("⚠️ Please select spray merchant items first!", 3)
+                _G.Library.Toggles.AutoBuySprayMerchant:SetValue(false)
+                return
+            end
+
+            local selectedCount = 0
+            for _, selected in pairs(sprayMerchantSelectedItems) do
+                if selected then selectedCount = selectedCount + 1 end
+            end
+
+            Library:Notify("🧪 Auto Buy Spray Merchant enabled! Will buy " .. selectedCount .. " selected items continuously.", 3)
+
+            -- Start auto buy loop
+            task.spawn(function()
+                while sprayMerchantAutoBuyEnabled do
+                    buySprayMerchantItems()
+                    task.wait(0.5) -- Fixed 0.5s interval for spray merchant
+                end
+            end)
+        else
+            Library:Notify("🧪 Auto Buy Spray Merchant disabled!", 3)
+        end
+    end
+})
+
+-- Manual buy button
+SprayMerchantTab:AddButton("🧪 Buy Selected Items Now", function()
+    if not sprayMerchantSelectedItems or not next(sprayMerchantSelectedItems) then
+        Library:Notify("⚠️ Please select spray merchant items first!", 3)
+        return
+    end
+    buySprayMerchantItems()
+end)
+
+-- Select All Spray Merchant Items button
+SprayMerchantTab:AddButton("Select All Spray Merchant Items", function()
+    -- Select all items in the dropdown
+    local allSelected = {}
+    for _, item in pairs(sprayMerchantItems) do
+        allSelected[item] = true
+    end
+
+    if _G.Library.Options.SprayMerchantItemSelection then
+        _G.Library.Options.SprayMerchantItemSelection:SetValue(allSelected)
+    end
+
+    Library:Notify("✅ Selected all spray merchant items", 2)
+end)
+
+-- Clear All Selections button
+SprayMerchantTab:AddButton("Clear All Selections", function()
+    if _G.Library.Options.SprayMerchantItemSelection then
+        _G.Library.Options.SprayMerchantItemSelection:SetValue({})
+    end
+
+    Library:Notify("🗑️ Cleared all spray merchant item selections", 2)
+end)
+
+-- Success notification
+Library:Notify("🍯🧪 Merchant Tab loaded successfully! Honey & Spray merchants ready.", 3)
+print("🍯 Merchant Tab: Loaded successfully with Honey & Spray merchant systems")
