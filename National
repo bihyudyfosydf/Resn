@@ -74,7 +74,8 @@ local AllZenEventItems = {
     "Koi",
     "Zen Gnome Crate",
     "Spiked Mango",
-    "Pet Shard Tranquil"
+    "Pet Shard Tranquil",
+    "Tranquil Radar"
 }
 
 -- Add elements directly to Zen Event Tab
