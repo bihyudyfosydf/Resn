@@ -1104,6 +1104,197 @@ AutoPlaceEggGroupBox:AddToggle("AutoPlaceEgg", {
     end,
 })
 
+-- ================================================================
+-- CRATE ESP SYSTEM
+-- ================================================================
+
+-- Add Crate ESP GroupBox to Essential tab
+local CrateEspGroupBox = Tabs.Essential:AddRightGroupbox("Crate ESP 📦")
+
+-- Variables for Crate ESP functionality
+local CrateESPEnabled = false
+local crateEspCache = {}
+local activeCrates = {}
+local crateEspConnection1 = nil
+local crateEspConnection2 = nil
+
+-- Function to create ESP GUI for crate (similar to egg ESP)
+local function CreateCrateEspGui(object, crateName, contents)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "CrateESP"
+    billboard.Adornee = object:FindFirstChildWhichIsA("BasePart") or object.PrimaryPart or object
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+
+    local label = Instance.new("TextLabel")
+    label.Parent = billboard
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = crateName .. " | " .. contents
+    label.TextColor3 = Color3.new(0, 1, 1) -- Cyan color like egg ESP
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.new(0, 0.5, 0.5)
+    label.TextScaled = true
+    label.Font = Enum.Font.Gotham
+
+    billboard.Parent = object
+    return billboard
+end
+
+-- Function to get crate contents (what you'll actually get)
+local function getCrateContents(crateName)
+    -- List of known crates and their typical contents
+    local crateContents = {
+        ["Sign Crate"] = "Random Sign",
+        ["Common Gnome Crate"] = "Random Gnome",
+        ["Farmers Gnome Crate"] = "Farmer Gnome", 
+        ["Classic Gnome Crate"] = "Classic Gnome",
+        ["Fun Crate"] = "Fun Item",
+        ["Beach Crate"] = "Beach Item",
+        ["Statue Crate"] = "Random Statue",
+        ["Summer Fun Crate"] = "Summer Item",
+        ["Zen Crate"] = "Zen Item",
+        ["Zen Gnome Crate"] = "Zen Gnome",
+        ["Honey Crafters Crate"] = "Crafting Item",
+        ["Bee Crate"] = "Bee Item",
+        ["Dino Crate"] = "Dino Item",
+        ["Mysterious Crate"] = "Mystery Item"
+    }
+    
+    return crateContents[crateName] or "Unknown Item"
+end
+
+-- Function to add ESP to crate
+local function AddCrateEsp(object)
+    if not object:IsA("Tool") then return end
+    if object.Parent ~= LocalPlayer.Backpack then return end
+    
+    -- Check if this is a crate by name (look for "Crate" in name)
+    local crateName = object.Name
+    local cleanCrateName = string.gsub(crateName, "%s*%[X%d+%]", "") -- Remove quantity indicators
+    
+    -- Only add ESP to items with "Crate" in the name
+    if not string.find(cleanCrateName:lower(), "crate") then return end
+    
+    local objectId = tostring(object)
+    if crateEspCache[objectId] then return end -- Already has ESP
+    
+    print("📦 Adding Crate ESP for:", cleanCrateName)
+    
+    local contents = getCrateContents(cleanCrateName)
+    local esp = CreateCrateEspGui(object, cleanCrateName, contents)
+    crateEspCache[objectId] = esp
+    activeCrates[objectId] = object
+end
+
+-- Function to remove ESP from crate
+local function RemoveCrateEsp(object)
+    local objectId = tostring(object)
+    if crateEspCache[objectId] then
+        crateEspCache[objectId]:Destroy()
+        crateEspCache[objectId] = nil
+        print("📦 Removed Crate ESP for:", object.Name)
+    end
+    activeCrates[objectId] = nil
+end
+
+-- Function to scan for crates in backpack
+local function scanForCrates()
+    if not CrateESPEnabled then return end
+    
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return end
+    
+    -- Check all tools in backpack for crates
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local cleanName = string.gsub(tool.Name, "%s*%[X%d+%]", "")
+            if string.find(cleanName:lower(), "crate") then
+                AddCrateEsp(tool)
+            end
+        end
+    end
+end
+
+-- Crate ESP Toggle
+CrateEspGroupBox:AddToggle("CrateESP", {
+    Text = "Crate ESP",
+    Tooltip = "Shows ESP for crates in your inventory with what you'll get from them",
+    Default = false,
+    Callback = function(Value)
+        CrateESPEnabled = Value
+        
+        if Value then
+            Library:Notify("📦 Crate ESP enabled!", 3)
+            
+            -- Scan for existing crates
+            scanForCrates()
+            
+            -- Connect to backpack events for when crates are added/removed
+            local backpack = LocalPlayer:FindFirstChild("Backpack")
+            if backpack then
+                crateEspConnection1 = backpack.ChildAdded:Connect(function(child)
+                    if child:IsA("Tool") then
+                        task.wait(0.1) -- Small delay to ensure tool is fully loaded
+                        AddCrateEsp(child)
+                    end
+                end)
+                
+                crateEspConnection2 = backpack.ChildRemoved:Connect(function(child)
+                    if child:IsA("Tool") then
+                        RemoveCrateEsp(child)
+                    end
+                end)
+            end
+            
+        else
+            Library:Notify("📦 Crate ESP disabled!", 3)
+            
+            -- Clean up all ESP
+            for id, gui in pairs(crateEspCache) do
+                if gui and gui.Parent then
+                    gui:Destroy()
+                end
+            end
+            crateEspCache = {}
+            activeCrates = {}
+            
+            -- Disconnect events
+            if crateEspConnection1 then
+                crateEspConnection1:Disconnect()
+                crateEspConnection1 = nil
+            end
+            
+            if crateEspConnection2 then
+                crateEspConnection2:Disconnect()
+                crateEspConnection2 = nil
+            end
+        end
+    end,
+})
+
+-- Refresh Crate ESP Button
+CrateEspGroupBox:AddButton("🔄 Refresh Crate ESP", function()
+    if not CrateESPEnabled then
+        Library:Notify("⚠️ Enable Crate ESP first!", 3)
+        return
+    end
+    
+    -- Clear existing ESP
+    for id, gui in pairs(crateEspCache) do
+        if gui and gui.Parent then
+            gui:Destroy()
+        end
+    end
+    crateEspCache = {}
+    activeCrates = {}
+    
+    -- Rescan for crates
+    scanForCrates()
+    
+    Library:Notify("📦 Crate ESP refreshed!", 2)
+end)
 
 
 -- ================================================================
